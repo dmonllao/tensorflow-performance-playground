@@ -34,15 +34,17 @@ ending_learning_rate = 0.005
 # Activation function.
 activation = tf.sigmoid
 
-# None to set it automatically.
-n_hidden = None
+# None to set it automatically based on the first two rows values: dataset_info()
+n_features = None # 'nfeatures' key
+n_classes = None # 'targetclasses' key
+n_hidden = None  # Automatically set to a value between n_features and n_classes
 
 
 # OTHER STUFF #################################
 
 n_threads = 1
 input_method = 'oldschool' # 'oldschool', 'dataset' or 'pipeline'.
-
+label_last_column = True # Whether the label is the last column or the first one.
 
 ###############################################
 
@@ -171,13 +173,19 @@ def read_pipeline(training_dataset_queue, n_features):
     return example, label
 
 
-def test_data(filename, n_classes):
+def test_data(filename, n_classes, label_last_column):
 
     # -1 to get the headers.
     df = pd.read_csv(filename, skiprows=skip_rows, dtype=np.float32)
 
-    features = df[df.columns[:-1]].fillna(0)
-    y_one_hot = np.eye(n_classes)[df[df.columns[-1]].astype(int)]
+    if label_last_column:
+        # The label is the last column.
+        y_one_hot = np.eye(n_classes)[df[df.columns[-1]].astype(int)]
+        features = df[df.columns[:-1]].fillna(0)
+    else:
+        # The label is the first column.
+        y_one_hot = np.eye(n_classes)[df[df.columns[0]].astype(int)]
+        features = df[df.columns[1:]].fillna(0)
 
     return (features, y_one_hot)
 
@@ -283,11 +291,18 @@ if len(training_datasets) == 0:
     print('No input files')
     sys.exit(1)
 
-info = dataset_info(training_datasets)
+if n_features == None:
+    if info.get('nfeatures') == False:
+        raise InputError('No n_features value has been provided nor it can be \
+            extracted from the dataset info')
+    n_features = int(info['nfeatures'])
 
-n_features = int(info['nfeatures'])
-classes = eval(info['targetclasses'])
-n_classes = len(classes)
+if n_classes == None:
+    if info.get('targetclasses') == False:
+        raise InputError('No n_classes value has been provided nor it can be \
+            extracted from the dataset info')
+    classes = eval(info['targetclasses'])
+    n_classes = len(classes)
 
 if n_hidden == None:
     n_hidden = max(int((n_features - n_classes) / 2), 2)
@@ -308,7 +323,7 @@ dir_path = (
 tensor_logdir = file_path + '/summaries/' + dir_path + '/' + str(time.time())
 
 # Load test data.
-test_data = test_data(test_dataset, n_classes)
+test_data = test_data(test_dataset, n_classes, label_last_column)
 
 # Inputs.
 if input_method == 'pipeline':
@@ -382,8 +397,15 @@ with tf.Session() as sess:
                     reader = [reader]
 
                 for df in reader:
-                    features = df[df.columns[:-1]].fillna(0)
-                    y_one_hot = np.eye(n_classes)[df[df.columns[-1]].astype(int)]
+
+                    if label_last_column:
+                        # The label is the last column.
+                        y_one_hot = np.eye(n_classes)[df[df.columns[-1]].astype(int)]
+                        features = df[df.columns[:-1]].fillna(0)
+                    else:
+                        # The label is the first column.
+                        y_one_hot = np.eye(n_classes)[df[df.columns[0]].astype(int)]
+                        features = df[df.columns[1:]].fillna(0)
 
                     # Run 1 training iteration.
                     _, summary = sess.run([train_step, merged], {
