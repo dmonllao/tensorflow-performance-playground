@@ -9,55 +9,16 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-
-# INPUT FILES DATA ###########################
-
-# Headers are not used, feel free to include them here.
-skip_rows = 3
-
-# Used to calculate the number of training steps before a learning rate decay.
-total_training_samples = 270000 # No need to be an exact value.
-
-# Whether the label is the last column or the first one.
-label_last_column = True
-
-n_features = None # 'nfeatures' key
-
-n_classes = None # 'targetclasses' key
-
-# HYPERPARAMETERS ############################
-
-# Whetever can be fit into the system memory.
-batch_size = 100000 # None for no mini-batching.
-num_epochs = 10
-
-# Dropout regularisation.
-keep_prob = 1
-
-# Learning rate tuning. Decay calculated from start - end difference.
-starting_learning_rate = 0.5
-ending_learning_rate = 0.005
-
-# Activation function.
-activation = tf.sigmoid
-
-# None to set it automatically based on the first two rows values: dataset_info()
-n_hidden = None  # Automatically set to a value between n_features and n_classes
-
-# OTHER STUFF ################################
-
 n_threads = 1
 input_method = 'oldschool' # 'oldschool', 'dataset' or 'pipeline'.
 
-##############################################
 
-
-def calculate_lr_decay(starting_learning_rate, ending_learning_rate,
+def calculate_lr_decay(start_lr, end_lr, batch_size,
                        n_samples, num_epochs):
     """Calculate approximately the optimal learning rate decay values"""
 
-    # Set learning rate decay so that it is ending_learning_rate after num_epoch.
-    percent_decrease = float(ending_learning_rate) / float(starting_learning_rate)
+    # Set learning rate decay so that it is the end learning rate after num_epoch.
+    percent_decrease = float(end_lr) / float(start_lr)
     learning_rate_decay = np.round(np.power(percent_decrease, 1. / num_epochs), 3)
 
     # The learning rate should decay after each epoch, otherwise the samples at
@@ -70,6 +31,14 @@ def calculate_lr_decay(starting_learning_rate, ending_learning_rate,
     print('Learning rate decay: ' + str(learning_rate_decay))
     print('Decay steps: ' + str(decay_steps))
     return learning_rate_decay, decay_steps
+
+
+def get_activation_function(name):
+    return {
+        'sigmoid': tf.sigmoid,
+        'tanh': tf.tanh,
+        'relu': tf.nn.relu
+    }[name]
 
 
 def parse_example(serialized_example):
@@ -140,12 +109,12 @@ def dataset_info(training_datasets):
     return info
 
 
-def input_pipeline(training_datasets, n_features, batch_size, n_threads=1,
+def input_pipeline(training_datasets, n_features, skip_rows, batch_size, n_threads=1,
                    num_epochs=None):
     training_dataset_queue = tf.train.string_input_producer(
         training_datasets, num_epochs=num_epochs, shuffle=True)
 
-    example_list = [read_pipeline(training_dataset_queue, n_features)
+    example_list = [read_pipeline(training_dataset_queue, n_features, skip_rows)
                     for _ in range(n_threads)]
 
     if batch_size is None:
@@ -159,7 +128,7 @@ def input_pipeline(training_datasets, n_features, batch_size, n_threads=1,
         min_after_dequeue=min_after_dequeue)
 
 
-def read_pipeline(training_dataset_queue, n_features):
+def read_pipeline(training_dataset_queue, n_features, skip_rows):
     reader = tf.TextLineReader(skip_header_lines=skip_rows)
     key, record_string = reader.read(training_dataset_queue)
 
@@ -176,19 +145,19 @@ def read_pipeline(training_dataset_queue, n_features):
     return example, label
 
 
-def test_data(filename, n_classes, label_last_column):
+def test_data(filename, n_classes, label_first_column, skip_rows):
 
     # -1 to get the headers.
     df = pd.read_csv(filename, skiprows=skip_rows, dtype=np.float32)
 
-    if label_last_column:
-        # The label is the last column.
-        y_one_hot = np.eye(n_classes)[df[df.columns[-1]].astype(int)]
-        features = df[df.columns[:-1]].fillna(0)
-    else:
+    if label_first_column:
         # The label is the first column.
         y_one_hot = np.eye(n_classes)[df[df.columns[0]].astype(int)]
         features = df[df.columns[1:]].fillna(0)
+    else:
+        # The label is the last column.
+        y_one_hot = np.eye(n_classes)[df[df.columns[-1]].astype(int)]
+        features = df[df.columns[:-1]].fillna(0)
 
     return (features, y_one_hot)
 
@@ -207,8 +176,9 @@ def feed_forward(x, model_vars, activation):
     return linear_values, tf.nn.softmax(linear_values)
 
 
-def build_nn_graph(n_features, n_hidden, n_classes, x, y_, activation, keep_prob=1,
-                   learning_rate_decay=0.9, test_data=False, decay_steps=1000):
+def build_nn_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
+                   keep_prob=1, learning_rate_decay=0.9, test_data=False,
+                   decay_steps=1000):
     """Builds the computational graph without feeding any data in"""
 
     # Variables for computed stuff, we need to initialise them now.
@@ -266,7 +236,7 @@ def build_nn_graph(n_features, n_hidden, n_classes, x, y_, activation, keep_prob
 
     # Calculate decay_rate.
     global_step = tf.Variable(0, trainable=False)
-    learning_rate = tf.train.exponential_decay(starting_learning_rate,
+    learning_rate = tf.train.exponential_decay(start_lr,
                                                global_step, decay_steps,
                                                learning_rate_decay,
                                                staircase=False)
@@ -286,8 +256,36 @@ parser = argparse.ArgumentParser(description='Train the neural network using ' +
 parser.add_argument('datasets', type=str, nargs='+',
                     help='Input files. All files but the last one will be used ' +
                           'for training. The last one will be used as test dataset.')
+parser.add_argument('--n_samples', '-m', dest='n_samples', type=int, required=True,
+                    help='Used to calculate the number of training steps before a learning rate decay. No need to be exact')
+parser.add_argument('--n_features', '-n', dest='n_features', type=int, required=True,
+                    help='Number of features')
+parser.add_argument('--n_classes', '-c', dest='n_classes', type=int, required=True,
+                    help='Number of different labels')
+parser.add_argument('--skip_rows', '-s', dest='skip_rows', type=int, default=1,
+                    help='Headers are not used, feel free to skip them.')
+parser.add_argument('--label_first_column', '-l', dest='label_first_column', action='store_true',
+                    help='Set the flag if the label is in the first column instead of in the last one.')
+
+parser.add_argument('--batch_size', '-b', dest='batch_size', type=int, default=10000,
+                    help='Whetever can be fit into the system memory.')
+parser.add_argument('--num_epochs', '-e', dest='num_epochs', type=int, default=100,
+                    help='Number of times the algorithm will be trained using all provided training data.')
+parser.add_argument('--activation', '-a', dest='activation', type=str, default='tanh',
+                    help='The activation function', choices=['sigmoid', 'tanh', 'relu'])
+parser.add_argument('--n_hidden', '-nh', dest='n_hidden', type=int, help='Number of hidden layer neurons. ' +
+                    'Automatically set to a value between n_features and n_classes if not value provided.')
+parser.add_argument('--keep_prob', '-d', dest='keep_prob', type=float, default=1,
+                    help='Form dropout regularization')
+parser.add_argument('--start_learning_rate', '-slr', dest='start_lr', type=float, default=0.5,
+                    help='Starting learning rate. It will decrease after each epoch')
+parser.add_argument('--end_learning_rate', '-elr', dest='end_lr', type=float, default=0.005,
+                    help='The learning rate after num_epoch. It will gradually ' +
+                         'decrease from start_learning_rate')
 
 args = parser.parse_args()
+print(args)
+
 datasets = args.datasets
 
 if len(args.datasets) < 2:
@@ -298,8 +296,12 @@ else:
 
 training_datasets = datasets
 
-
 start_time = time.clock()
+
+# Network neurons distribution.
+n_features = args.n_features
+n_classes = args.n_classes
+n_hidden = args.n_hidden
 
 if n_features == None or n_classes == None:
     info = dataset_info(training_datasets)
@@ -319,29 +321,33 @@ if n_features == None or n_classes == None:
 if n_hidden == None:
     n_hidden = max(int((n_features - n_classes) / 2), 2)
 
+# Activation function.
+activation = get_activation_function(args.activation)
+
 # Calculate learning rate decay.
-lr_decay, decay_steps = calculate_lr_decay(starting_learning_rate,
-                                           ending_learning_rate,
-                                           total_training_samples,
-                                           num_epochs)
+lr_decay, decay_steps = calculate_lr_decay(args.start_lr,
+                                           args.end_lr,
+                                           args.batch_size,
+                                           args.n_samples,
+                                           args.num_epochs)
 
 # Results logging.
 file_path = os.path.dirname(os.path.realpath(__file__))
 dir_path = (
-    'batchsize_' + str(batch_size) + '-epoch_' + str(num_epochs) +
-    '-learningrate_' + str(starting_learning_rate) +
-    '-decay_' + str(lr_decay) + '-activation_' + activation.__name__
+    'batchsize_' + str(args.batch_size) + '-epoch_' + str(args.num_epochs) +
+    '-learningrate_' + str(args.start_lr) +
+    '-decay_' + str(lr_decay) + '-activation_' + args.activation
 )
 tensor_logdir = os.path.join(file_path, 'summaries', dir_path, str(time.time()))
 
 # Load test data.
 if test_dataset:
-    test_data = test_data(test_dataset, n_classes, label_last_column)
+    test_data = test_data(test_dataset, n_classes, args.label_first_column, args.skip_rows)
 
 # Inputs.
 if input_method == 'pipeline':
-    batches = input_pipeline(training_datasets, n_features,
-                             batch_size, n_threads, num_epochs=num_epochs)
+    batches = input_pipeline(training_datasets, n_features, args.skip_rows,
+                             args.batch_size, n_threads, num_epochs=args.num_epochs)
     x = batches[0]
     y_ = tf.one_hot(batches[1], n_classes)
 
@@ -350,8 +356,8 @@ elif input_method == 'oldschool':
     y_ = tf.placeholder(tf.float32, [None, n_classes])
 
 elif input_method == 'dataset':
-    dataset = get_tfrecord_dataset(training_datasets, batch_size, num_epochs,
-                                   skip_rows, n_threads=n_threads)
+    dataset = get_tfrecord_dataset(training_datasets, args.batch_size, args.num_epochs,
+                                   args.skip_rows, n_threads=n_threads)
     iterator = dataset.make_one_shot_iterator()
     next_element = iterator.get_next()
     x = tf.reshape(next_element[0], [-1, n_features])
@@ -359,8 +365,8 @@ elif input_method == 'dataset':
 
 # Build graph.
 train_step, global_step, test_accuracy, model_vars = build_nn_graph(
-    n_features, n_hidden, n_classes,
-    x, y_, activation=activation, test_data=test_data, keep_prob=keep_prob,
+    n_features, n_hidden, n_classes, x, y_, activation, args.start_lr,
+    test_data=test_data, keep_prob=args.keep_prob,
     learning_rate_decay=lr_decay, decay_steps=decay_steps)
 
 with tf.Session() as sess:
@@ -397,12 +403,12 @@ with tf.Session() as sess:
 
     if input_method == 'oldschool':
 
-        for i in range(num_epochs):
+        for i in range(args.num_epochs):
             for training_dataset in training_datasets:
 
                 # -1 to get the headers.
-                reader = pd.read_csv(training_dataset, chunksize=batch_size,
-                                        skiprows=skip_rows,
+                reader = pd.read_csv(training_dataset, chunksize=args.batch_size,
+                                        skiprows=args.skip_rows,
                                         dtype=np.float32)
 
                 # Only 1 chunk When batch_size = None, let's convert it to an iterable.
@@ -411,14 +417,14 @@ with tf.Session() as sess:
 
                 for df in reader:
 
-                    if label_last_column:
-                        # The label is the last column.
-                        y_one_hot = np.eye(n_classes)[df[df.columns[-1]].astype(int)]
-                        features = df[df.columns[:-1]].fillna(0)
-                    else:
+                    if args.label_first_column:
                         # The label is the first column.
                         y_one_hot = np.eye(n_classes)[df[df.columns[0]].astype(int)]
                         features = df[df.columns[1:]].fillna(0)
+                    else:
+                        # The label is the last column.
+                        y_one_hot = np.eye(n_classes)[df[df.columns[-1]].astype(int)]
+                        features = df[df.columns[:-1]].fillna(0)
 
                     # Run 1 training iteration.
                     _, summary = sess.run([train_step, merged], {
