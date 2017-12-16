@@ -1,15 +1,16 @@
-import shutil
 import sys
 import csv
 import os
 import time
+import shutil
+import argparse
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
 
-# INPUT FILES DATA ##########################
+# INPUT FILES DATA ###########################
 
 # Headers are not used, feel free to include them here.
 skip_rows = 3
@@ -17,6 +18,12 @@ skip_rows = 3
 # Used to calculate the number of training steps before a learning rate decay.
 total_training_samples = 270000 # No need to be an exact value.
 
+# Whether the label is the last column or the first one.
+label_last_column = True
+
+n_features = None # 'nfeatures' key
+
+n_classes = None # 'targetclasses' key
 
 # HYPERPARAMETERS ############################
 
@@ -35,18 +42,14 @@ ending_learning_rate = 0.005
 activation = tf.sigmoid
 
 # None to set it automatically based on the first two rows values: dataset_info()
-n_features = None # 'nfeatures' key
-n_classes = None # 'targetclasses' key
 n_hidden = None  # Automatically set to a value between n_features and n_classes
 
-
-# OTHER STUFF #################################
+# OTHER STUFF ################################
 
 n_threads = 1
 input_method = 'oldschool' # 'oldschool', 'dataset' or 'pipeline'.
-label_last_column = True # Whether the label is the last column or the first one.
 
-###############################################
+##############################################
 
 
 def calculate_lr_decay(starting_learning_rate, ending_learning_rate,
@@ -264,7 +267,8 @@ def build_nn_graph(n_features, n_hidden, n_classes, x, y_, activation, keep_prob
     # Calculate decay_rate.
     global_step = tf.Variable(0, trainable=False)
     learning_rate = tf.train.exponential_decay(starting_learning_rate,
-                                               global_step, decay_steps, learning_rate_decay,
+                                               global_step, decay_steps,
+                                               learning_rate_decay,
                                                staircase=False)
     tf.summary.scalar("learning_rate", learning_rate)
 
@@ -277,32 +281,40 @@ def build_nn_graph(n_features, n_hidden, n_classes, x, y_, activation, keep_prob
 
 ############################################
 
+parser = argparse.ArgumentParser(description='Train the neural network using ' +
+                                              'the provided setup.')
+parser.add_argument('datasets', type=str, nargs='+',
+                    help='Input files. All files but the last one will be used ' +
+                          'for training. The last one will be used as test dataset.')
 
-# Remove python bin.
-training_datasets = sys.argv
-training_datasets.pop(0)
+args = parser.parse_args()
+datasets = args.datasets
 
-# The last item is the test set.
-test_dataset = training_datasets.pop()
+if len(args.datasets) < 2:
+    print('It is recommended to also provide a test dataset')
+else:
+    # The last item is the test set.
+    test_dataset = datasets.pop()
+
+training_datasets = datasets
+
 
 start_time = time.clock()
 
-if len(training_datasets) == 0:
-    print('No input files')
-    sys.exit(1)
+if n_features == None or n_classes == None:
+    info = dataset_info(training_datasets)
+    if n_features == None:
+        if info.get('nfeatures') == None:
+            print('No n_features value has been provided')
+            sys.exit()
+        n_features = int(info.get('nfeatures'))
 
-if n_features == None:
-    if info.get('nfeatures') == False:
-        raise InputError('No n_features value has been provided nor it can be \
-            extracted from the dataset info')
-    n_features = int(info['nfeatures'])
-
-if n_classes == None:
-    if info.get('targetclasses') == False:
-        raise InputError('No n_classes value has been provided nor it can be \
-            extracted from the dataset info')
-    classes = eval(info['targetclasses'])
-    n_classes = len(classes)
+    if n_classes == None:
+        if info.get('targetclasses') == False:
+            print('No n_classes value has been provided')
+            sys.exit()
+        classes = eval(info.get('targetclasses'))
+        n_classes = len(classes)
 
 if n_hidden == None:
     n_hidden = max(int((n_features - n_classes) / 2), 2)
@@ -320,10 +332,11 @@ dir_path = (
     '-learningrate_' + str(starting_learning_rate) +
     '-decay_' + str(lr_decay) + '-activation_' + activation.__name__
 )
-tensor_logdir = file_path + '/summaries/' + dir_path + '/' + str(time.time())
+tensor_logdir = os.path.join(file_path, 'summaries', dir_path, str(time.time()))
 
 # Load test data.
-test_data = test_data(test_dataset, n_classes, label_last_column)
+if test_dataset:
+    test_data = test_data(test_dataset, n_classes, label_last_column)
 
 # Inputs.
 if input_method == 'pipeline':
