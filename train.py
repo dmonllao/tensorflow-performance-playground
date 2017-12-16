@@ -147,7 +147,6 @@ def read_pipeline(training_dataset_queue, n_features, skip_rows):
 
 def test_data(filename, n_classes, label_first_column, skip_rows):
 
-    # -1 to get the headers.
     df = pd.read_csv(filename, skiprows=skip_rows, dtype=np.float32)
 
     if label_first_column:
@@ -406,7 +405,6 @@ with tf.Session() as sess:
         for i in range(args.num_epochs):
             for training_dataset in training_datasets:
 
-                # -1 to get the headers.
                 reader = pd.read_csv(training_dataset, chunksize=args.batch_size,
                                         skiprows=args.skip_rows,
                                         dtype=np.float32)
