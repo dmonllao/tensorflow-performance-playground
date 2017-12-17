@@ -1,5 +1,4 @@
 import sys
-import csv
 import os
 import time
 import shutil
@@ -9,278 +8,18 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+import inputs
+import nn
+
 n_threads = 1
 input_method = 'oldschool' # 'oldschool', 'dataset' or 'pipeline'.
 
 
-def calculate_lr_decay(start_lr, end_lr, batch_size,
-                       n_samples, num_epochs):
-    """Calculate approximately the optimal learning rate decay values"""
-
-    # Set learning rate decay so that it is the end learning rate after num_epoch.
-    percent_decrease = float(end_lr) / float(start_lr)
-    learning_rate_decay = np.round(np.power(percent_decrease, 1. / num_epochs), 3)
-
-    # The learning rate should decay after each epoch, otherwise the samples at
-    # the end of the dataset have less weight.
-    if batch_size is None:
-        decay_steps = 1
-    else:
-        decay_steps = np.floor(n_samples / batch_size)
-
-    print('Learning rate decay: ' + str(learning_rate_decay))
-    print('Decay steps: ' + str(decay_steps))
-    return learning_rate_decay, decay_steps
-
-
-def get_activation_function(name):
-    return {
-        'sigmoid': tf.sigmoid,
-        'tanh': tf.tanh,
-        'relu': tf.nn.relu
-    }[name]
-
-
-def parse_example(serialized_example):
-
-    features = {
-        "features": tf.FixedLenSequenceFeature([], tf.float32, allow_missing=True),
-        "label": tf.FixedLenFeature([], tf.int64)
-    }
-    parsed_features = tf.parse_single_example(serialized_example, features)
-    return parsed_features['features'], parsed_features['label']
-
-
-def get_tfrecord_dataset(training_datasets, batch_size, num_epochs, skip_rows,
-                         n_threads=None):
-
-    tfrecord_files = []
-    for training_dataset in training_datasets:
-        filename, ext = os.path.splitext(training_dataset)
-        output_file = filename + "_" + ext[1:] + ".tfrecords"
-
-        # Skip already converted files.
-        if os.path.isfile(output_file) == False:
-
-            print('Generating tfrecord file...')
-            writer = tf.python_io.TFRecordWriter(output_file)
-
-            # Read in chunks to avoid memory problems.
-            reader = pd.read_csv(training_dataset, chunksize=batch_size,
-                                    skiprows=skip_rows,
-                                    dtype=np.float32)
-            # Only 1 chunk When batch_size = None, let's convert it to an iterable.
-            if type(reader) is not pd.io.parsers.TextFileReader:
-                reader = [reader]
-
-            for df in reader:
-                df = df.fillna(0.0)
-                for i, row in df.iterrows():
-                    features = row[:-1].tolist()
-                    label = int(row[-1])
-                    example = tf.train.Example()
-                    example.features.feature["features"].float_list.value.extend(features)
-                    example.features.feature["label"].int64_list.value.append(label)
-                    writer.write(example.SerializeToString())
-
-            writer.close()
-
-        tfrecord_files.append(output_file)
-
-    dataset = tf.data.TFRecordDataset(tfrecord_files)
-    dataset = dataset.map(parse_example, num_parallel_calls=n_threads)
-
-    dataset = dataset.repeat(num_epochs)
-    if batch_size is not None:
-        dataset = dataset.batch(batch_size)
-    #dataset = dataset.shuffle(buffer_size=10000)
-
-    return dataset
-
-
-def dataset_info(training_datasets):
-    info = {}
-    with open(training_datasets[0], 'r') as f:
-        vars = csv.DictReader(f)
-        values = csv.DictReader(f)
-        for i, var in enumerate(vars.fieldnames):
-            info[var] = values.fieldnames[i]
-
-    return info
-
-
-def input_pipeline(training_datasets, n_features, skip_rows, batch_size, n_threads=1,
-                   num_epochs=None):
-    training_dataset_queue = tf.train.string_input_producer(
-        training_datasets, num_epochs=num_epochs, shuffle=True)
-
-    example_list = [read_pipeline(training_dataset_queue, n_features, skip_rows)
-                    for _ in range(n_threads)]
-
-    if batch_size is None:
-        raise ValueError('batch_size var must have a value.')
-
-    min_after_dequeue = 10000
-    capacity = min_after_dequeue + 3 * batch_size
-
-    return tf.train.shuffle_batch_join(
-        example_list, batch_size=batch_size, capacity=capacity,
-        min_after_dequeue=min_after_dequeue)
-
-
-def read_pipeline(training_dataset_queue, n_features, skip_rows):
-    reader = tf.TextLineReader(skip_header_lines=skip_rows)
-    key, record_string = reader.read(training_dataset_queue)
-
-    record_defaults = []
-    for i in range(n_features):
-        record_defaults.append([0.0])
-    record_defaults.append([0])
-
-    rows = tf.decode_csv(record_string, record_defaults)
-    example = rows[0:n_features]
-    label = rows[n_features]
-
-    # TODO Preprocessing
-    return example, label
-
-
-def test_data(filename, n_classes, label_first_column, skip_rows):
-
-    df = pd.read_csv(filename, skiprows=skip_rows, dtype=np.float32)
-
-    if label_first_column:
-        # The label is the first column.
-        y_one_hot = np.eye(n_classes)[df[df.columns[0]].astype(int)]
-        features = df[df.columns[1:]].fillna(0)
-    else:
-        # The label is the last column.
-        y_one_hot = np.eye(n_classes)[df[df.columns[-1]].astype(int)]
-        features = df[df.columns[:-1]].fillna(0)
-
-    return (features, y_one_hot)
-
-
-def feed_forward(x, model_vars, activation):
-    """Single hidden layer feed forward nn using softmax."""
-
-    W = model_vars[0]
-    b = model_vars[1]
-
-    hidden = activation(tf.matmul(x, W['input-hidden']) + b['input-hidden'],
-                     name='activation-function')
-
-    linear_values = tf.matmul(hidden, W['hidden-output']) + b['hidden-output']
-
-    return linear_values, tf.nn.softmax(linear_values)
-
-
-def build_nn_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
-                   keep_prob=1, learning_rate_decay=0.9, test_data=False,
-                   decay_steps=1000):
-    """Builds the computational graph without feeding any data in"""
-
-    # Variables for computed stuff, we need to initialise them now.
-    with tf.name_scope('initialise-vars'):
-
-        test_accuracy = tf.Variable(0.0, dtype=tf.float32)
-
-        W = {
-            'input-hidden': tf.Variable(
-                tf.random_normal([n_features, n_hidden], dtype=tf.float32),
-                name='input-to-hidden-weights'
-            ),
-            'hidden-output': tf.Variable(
-                tf.random_normal([n_hidden, n_classes], dtype=tf.float32),
-                name='hidden-to-output-weights'
-            ),
-        }
-
-        b = {
-            'input-hidden': tf.Variable(
-                tf.random_normal([n_hidden], dtype=tf.float32),
-                name='hidden-bias'
-            ),
-            'hidden-output': tf.Variable(
-                tf.random_normal([n_classes], dtype=tf.float32),
-                name='output-bias'
-            ),
-        }
-
-    # Predicted y.
-    with tf.name_scope('loss'):
-
-        x = tf.nn.dropout(x, keep_prob)
-        linear_values, y = feed_forward(x, (W, b), activation)
-        tf.summary.histogram('predicted_values', linear_values)
-        tf.summary.histogram('activations', y)
-
-        loss = tf.reduce_mean(
-            tf.nn.softmax_cross_entropy_with_logits(logits=linear_values, labels=y_)
-        )
-        tf.summary.scalar("loss", loss)
-
-    with tf.name_scope('accuracy'):
-        correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        tf.summary.scalar('training_accuracy', accuracy)
-
-        # Calculate the test dataset accuracy.
-        if test_data is not False:
-            test_probs, test_softmax = feed_forward(test_data[0], (W, b), activation)
-            correct_prediction = tf.equal(tf.argmax(test_softmax, 1), tf.argmax(test_data[1], 1))
-            test_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-            tf.summary.scalar('test_accuracy', test_accuracy)
-
-
-    # Calculate decay_rate.
-    global_step = tf.Variable(0, trainable=False)
-    learning_rate = tf.train.exponential_decay(start_lr,
-                                               global_step, decay_steps,
-                                               learning_rate_decay,
-                                               staircase=False)
-    tf.summary.scalar("learning_rate", learning_rate)
-
-    train_step = tf.train.GradientDescentOptimizer(
-        learning_rate
-    ).minimize(loss, global_step=global_step)
-
-    return train_step, global_step, test_accuracy, (W, b)
 
 
 ############################################
 
-parser = argparse.ArgumentParser(description='Train the neural network using ' +
-                                              'the provided setup.')
-parser.add_argument('datasets', type=str, nargs='+',
-                    help='Input files. All files but the last one will be used ' +
-                          'for training. The last one will be used as test dataset.')
-parser.add_argument('--n_samples', '-m', dest='n_samples', type=int, required=True,
-                    help='Used to calculate the number of training steps before a learning rate decay. No need to be exact')
-parser.add_argument('--n_features', '-n', dest='n_features', type=int, required=True,
-                    help='Number of features')
-parser.add_argument('--n_classes', '-c', dest='n_classes', type=int, required=True,
-                    help='Number of different labels')
-parser.add_argument('--skip_rows', '-s', dest='skip_rows', type=int, default=1,
-                    help='Headers are not used, feel free to skip them.')
-parser.add_argument('--label_first_column', '-l', dest='label_first_column', action='store_true',
-                    help='Set the flag if the label is in the first column instead of in the last one.')
-
-parser.add_argument('--batch_size', '-b', dest='batch_size', type=int, default=10000,
-                    help='Whetever can be fit into the system memory.')
-parser.add_argument('--num_epochs', '-e', dest='num_epochs', type=int, default=100,
-                    help='Number of times the algorithm will be trained using all provided training data.')
-parser.add_argument('--activation', '-a', dest='activation', type=str, default='tanh',
-                    help='The activation function', choices=['sigmoid', 'tanh', 'relu'])
-parser.add_argument('--n_hidden', '-nh', dest='n_hidden', type=int, help='Number of hidden layer neurons. ' +
-                    'Automatically set to a value between n_features and n_classes if not value provided.')
-parser.add_argument('--keep_prob', '-d', dest='keep_prob', type=float, default=1,
-                    help='Form dropout regularization')
-parser.add_argument('--start_learning_rate', '-slr', dest='start_lr', type=float, default=0.5,
-                    help='Starting learning rate. It will decrease after each epoch')
-parser.add_argument('--end_learning_rate', '-elr', dest='end_lr', type=float, default=0.005,
-                    help='The learning rate after num_epoch. It will gradually ' +
-                         'decrease from start_learning_rate')
+parser = inputs.args_parser('Train the neural network.')
 
 args = parser.parse_args()
 print(args)
@@ -297,34 +36,15 @@ training_datasets = datasets
 
 start_time = time.clock()
 
-# Network neurons distribution.
-n_features = args.n_features
-n_classes = args.n_classes
-n_hidden = args.n_hidden
-
-if n_features == None or n_classes == None:
-    info = dataset_info(training_datasets)
-    if n_features == None:
-        if info.get('nfeatures') == None:
-            print('No n_features value has been provided')
-            sys.exit()
-        n_features = int(info.get('nfeatures'))
-
-    if n_classes == None:
-        if info.get('targetclasses') == False:
-            print('No n_classes value has been provided')
-            sys.exit()
-        classes = eval(info.get('targetclasses'))
-        n_classes = len(classes)
-
-if n_hidden == None:
-    n_hidden = max(int((n_features - n_classes) / 2), 2)
+# Network architecture.
+n_features, n_classes, n_hidden = inputs.get_n_neurons(args.n_features,
+    args.n_classes, args.n_hidden, training_datasets)
 
 # Activation function.
-activation = get_activation_function(args.activation)
+activation = inputs.get_activation_function(args.activation)
 
 # Calculate learning rate decay.
-lr_decay, decay_steps = calculate_lr_decay(args.start_lr,
+lr_decay, decay_steps = inputs.calculate_lr_decay(args.start_lr,
                                            args.end_lr,
                                            args.batch_size,
                                            args.n_samples,
@@ -341,11 +61,11 @@ tensor_logdir = os.path.join(file_path, 'summaries', dir_path, str(time.time()))
 
 # Load test data.
 if test_dataset:
-    test_data = test_data(test_dataset, n_classes, args.label_first_column, args.skip_rows)
+    test_data = inputs.test_data(test_dataset, n_classes, args.label_first_column, args.skip_rows)
 
 # Inputs.
 if input_method == 'pipeline':
-    batches = input_pipeline(training_datasets, n_features, args.skip_rows,
+    batches = inputs.input_pipeline(training_datasets, n_features, args.skip_rows,
                              args.batch_size, n_threads, num_epochs=args.num_epochs)
     x = batches[0]
     y_ = tf.one_hot(batches[1], n_classes)
@@ -355,7 +75,7 @@ elif input_method == 'oldschool':
     y_ = tf.placeholder(tf.float32, [None, n_classes])
 
 elif input_method == 'dataset':
-    dataset = get_tfrecord_dataset(training_datasets, args.batch_size, args.num_epochs,
+    dataset = inputs.get_tfrecord_dataset(training_datasets, args.batch_size, args.num_epochs,
                                    args.skip_rows, n_threads=n_threads)
     iterator = dataset.make_one_shot_iterator()
     next_element = iterator.get_next()
@@ -363,7 +83,7 @@ elif input_method == 'dataset':
     y_ = tf.one_hot(next_element[1], n_classes)
 
 # Build graph.
-train_step, global_step, test_accuracy, model_vars = build_nn_graph(
+train_step, global_step, test_accuracy, model_vars = nn.build_graph(
     n_features, n_hidden, n_classes, x, y_, activation, args.start_lr,
     test_data=test_data, keep_prob=args.keep_prob,
     learning_rate_decay=lr_decay, decay_steps=decay_steps)
