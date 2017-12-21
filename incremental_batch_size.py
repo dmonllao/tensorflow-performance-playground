@@ -87,17 +87,18 @@ start_time = time.clock()
 n_features, n_classes, n_hidden = inputs.get_n_neurons(args.n_features,
     args.n_classes, args.n_hidden, training_datasets)
 
-# Calculate learning rate decay.
-lr_decay, decay_steps = inputs.calculate_lr_decay(args.start_lr,
-                                           args.end_lr,
-                                           args.batch_size,
-                                           args.n_samples,
-                                           args.num_epochs)
-
-
 # Batch size increment method.
 increment_method = 'batch_' + args.increment_method + '_sizes'
 batch_sizes = locals()[increment_method](args.batch_size, args.end_batch_size, args.num_epochs)
+
+
+# Calculate learning rate decay (using the average batch size as batch size).
+avg_batch_size = np.sum(batch_sizes) / len(batch_sizes)
+lr_decay, decay_steps = inputs.calculate_lr_decay(args.start_lr,
+                                           args.end_lr,
+                                           avg_batch_size,
+                                           args.n_samples,
+                                           args.num_epochs)
 
 # Results logging.
 file_path = os.path.dirname(os.path.realpath(__file__))
