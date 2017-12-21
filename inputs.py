@@ -6,22 +6,24 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-def get_activation_function(name):
-    return {
-        'sigmoid': tf.sigmoid,
-        'tanh': tf.tanh,
-        'relu': tf.nn.relu
-    }[name]
-
 
 def exponential_multiplier(start, end, num_epochs):
     percent = float(end) / float(start)
     return np.power(percent, 1. / num_epochs)
 
 
+def logarithmic_multiplier(start, end, num_epochs):
+    percent = float(end) / float(start)
+    return np.power(num_epochs, 1 / percent)
+
+
 def calculate_lr_decay(start_lr, end_lr, batch_size,
                        n_samples, num_epochs):
     """Calculate approximately the optimal learning rate decay values"""
+
+    # No decay.
+    if start_lr == end_lr:
+        return 1, batch_size
 
     # Set learning rate decay so that it is the end learning rate after num_epoch.
     learning_rate_decay = exponential_multiplier(start_lr, end_lr, num_epochs)
@@ -204,6 +206,8 @@ def args_parser(description):
                         help='Number of times the algorithm will be trained using all provided training data.')
     parser.add_argument('--activation', '-a', dest='activation', type=str, default='tanh',
                         help='The activation function', choices=['sigmoid', 'tanh', 'relu'])
+    parser.add_argument('--optimizer', '-o', dest='optimizer', type=str, default='gradientdescent',
+                        help='Optimization method', choices=['gradientdescent', 'adam'])
     parser.add_argument('--n_hidden', '-nh', dest='n_hidden', type=int, help='Number of hidden layer neurons. ' +
                         'Automatically set to a value between n_features and n_classes if not value provided.')
     parser.add_argument('--keep_prob', '-d', dest='keep_prob', type=float, default=1,

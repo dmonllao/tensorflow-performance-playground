@@ -2,6 +2,7 @@ import sys
 import csv
 import os
 import time
+import math
 import shutil
 
 import numpy as np
@@ -15,21 +16,57 @@ n_threads = 1
 input_method = 'oldschool' # 'oldschool', 'dataset' or 'pipeline'.
 
 
-def batch_exponential_sizes(start_batch_size, end_batch_size, num_epochs, n_samples):
-    multiplier = inputs.exponential_multiplier(start_batch_size, end_batch_size, num_epochs - 1)
+def batch_logarithmic_sizes(start_batch_size, end_batch_size, num_epochs):
+    """"Logarithmic scale of batch sizes of size num_epochs"""
+
+    multiplier = inputs.logarithmic_multiplier(start_batch_size, end_batch_size, num_epochs)
+    print('Batch logarithmic multiplier: ' + str(multiplier))
 
     sizes = [start_batch_size]
     for i in range(1, num_epochs):
-        sizes.append(int(sizes[i - 1] * multiplier))
+        log = math.log(i + 1, multiplier)
+        sizes.append(int(start_batch_size * log))
 
+    print(sizes)
+    return sizes
+
+
+def batch_exponential_sizes(start_batch_size, end_batch_size, num_epochs):
+    """"Exponential scale of batch sizes of size num_epochs"""
+
+    multiplier = inputs.exponential_multiplier(start_batch_size, end_batch_size, num_epochs - 1)
+    print('Batch exponential multiplier: ' + str(multiplier))
+
+    sizes = [start_batch_size]
+    for i in range(1, num_epochs):
+        exp = math.pow(multiplier, i)
+        sizes.append(int(start_batch_size * exp))
+
+    print(sizes)
+    return sizes
+
+
+def batch_linear_sizes(start_batch_size, end_batch_size, num_epochs):
+    """"Linear scale of batch sizes of size num_epochs"""
+
+    addition = (end_batch_size - start_batch_size) / (num_epochs - 1)
+    print('Batch linear addition: ' + str(addition))
+    sizes = [start_batch_size]
+    for i in range(1, num_epochs):
+        sizes.append(start_batch_size + (addition * i))
+
+    print(sizes)
     return sizes
 
 
 ############################################
 
 parser = inputs.args_parser('Train the neural network using an incremental batch size.')
-parser.add_argument('--end_batch_size', '-eb', dest='end_batch_size', type=int, default=10000,
-                    help='Whetever can be fit into the system memory.')
+parser.add_argument('--end_batch_size', '-eb', dest='end_batch_size', type=int,
+                    default=10000, help='Whetever can be fit into the system memory.')
+parser.add_argument('--increment', '-i', dest='increment_method', type=str,
+                    choices=['logarithmic', 'exponential', 'linear'],
+                    default='linear', help='How should the batch size increase')
 
 args = parser.parse_args()
 print(args)
@@ -50,9 +87,6 @@ start_time = time.clock()
 n_features, n_classes, n_hidden = inputs.get_n_neurons(args.n_features,
     args.n_classes, args.n_hidden, training_datasets)
 
-# Activation function.
-activation = inputs.get_activation_function(args.activation)
-
 # Calculate learning rate decay.
 lr_decay, decay_steps = inputs.calculate_lr_decay(args.start_lr,
                                            args.end_lr,
@@ -61,16 +95,19 @@ lr_decay, decay_steps = inputs.calculate_lr_decay(args.start_lr,
                                            args.num_epochs)
 
 
-batch_sizes = batch_exponential_sizes(args.batch_size, args.end_batch_size, args.num_epochs, args.n_samples)
+# Batch size increment method.
+increment_method = 'batch_' + args.increment_method + '_sizes'
+batch_sizes = locals()[increment_method](args.batch_size, args.end_batch_size, args.num_epochs)
 
 # Results logging.
 file_path = os.path.dirname(os.path.realpath(__file__))
 dir_path = (
-    'incremental'
+    'increment_' + str(args.increment_method) +
     '-batchsize_' + str(args.batch_size) + '-endbatchsize_' + str(args.end_batch_size) +
     '-epoch_' + str(args.num_epochs) +
     '-learningrate_' + str(args.start_lr) +
-    '-decay_' + str(lr_decay) + '-activation_' + args.activation
+    '-decay_' + str(lr_decay) + '-activation_' + args.activation +
+    '-keepprob_' + str(args.keep_prob)
 )
 tensor_logdir = os.path.join(file_path, 'summaries', dir_path, str(time.time()))
 
@@ -83,8 +120,8 @@ y_ = tf.placeholder(tf.float32, [None, n_classes])
 
 # Build graph.
 train_step, global_step, test_accuracy, model_vars = nn.build_graph(
-    n_features, n_hidden, n_classes, x, y_, activation, args.start_lr,
-    test_data=test_data, keep_prob=args.keep_prob,
+    n_features, n_hidden, n_classes, x, y_, args.activation, args.start_lr,
+    test_data=test_data, keep_prob=args.keep_prob, optimizer=args.optimizer,
     learning_rate_decay=lr_decay, decay_steps=decay_steps)
 
 with tf.Session() as sess:
@@ -132,12 +169,7 @@ with tf.Session() as sess:
                 global_step_value = sess.run(global_step)
                 file_writer.add_summary(summary, global_step_value)
 
-                # Output test dataset accuracy.
-                if global_step_value % 10 == 0:
-                    print('Test accuracy: ' + str(sess.run(test_accuracy)))
-
-            if global_step_value % 10 == 0:
-                print('Test accuracy: ' + str(sess.run(test_accuracy)))
+    print('Test accuracy: ' + str(sess.run(test_accuracy)))
 
 end_time = time.clock()
 

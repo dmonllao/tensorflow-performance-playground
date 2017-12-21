@@ -2,9 +2,12 @@ import tensorflow as tf
 
 
 def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
-                   keep_prob=1, learning_rate_decay=0.9, test_data=False,
-                   decay_steps=1000):
+                keep_prob=1, optimizer='gradientdescent', learning_rate_decay=0.9,
+                test_data=False, decay_steps=1000):
     """Builds the computational graph without feeding any data in"""
+
+    # Activation function.
+    activation_function = get_activation_function(activation)
 
     # Variables for computed stuff, we need to initialise them now.
     with tf.name_scope('initialise-vars'):
@@ -37,7 +40,7 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
     with tf.name_scope('loss'):
 
         x = tf.nn.dropout(x, keep_prob)
-        linear_values, y = feed_forward(x, (W, b), activation)
+        linear_values, y = feed_forward(x, (W, b), activation_function)
         tf.summary.histogram('predicted_values', linear_values)
         tf.summary.histogram('activations', y)
 
@@ -53,7 +56,7 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
 
         # Calculate the test dataset accuracy.
         if test_data is not False:
-            test_probs, test_softmax = feed_forward(test_data[0], (W, b), activation)
+            test_probs, test_softmax = feed_forward(test_data[0], (W, b), activation_function)
             correct_prediction = tf.equal(tf.argmax(test_softmax, 1), tf.argmax(test_data[1], 1))
             test_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             tf.summary.scalar('test_accuracy', test_accuracy)
@@ -67,23 +70,39 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
                                                staircase=False)
     tf.summary.scalar("learning_rate", learning_rate)
 
-    train_step = tf.train.GradientDescentOptimizer(
-        learning_rate
-    ).minimize(loss, global_step=global_step)
+    optimizer = get_optimizer(optimizer, learning_rate)
+    train_step = optimizer.minimize(loss, global_step=global_step)
 
     return train_step, global_step, test_accuracy, (W, b)
 
 
-def feed_forward(x, model_vars, activation):
+def feed_forward(x, model_vars, activation_function):
     """Single hidden layer feed forward nn using softmax."""
 
     W = model_vars[0]
     b = model_vars[1]
 
-    hidden = activation(tf.matmul(x, W['input-hidden']) + b['input-hidden'],
+    hidden = activation_function(tf.matmul(x, W['input-hidden']) + b['input-hidden'],
                      name='activation-function')
 
     linear_values = tf.matmul(hidden, W['hidden-output']) + b['hidden-output']
 
     return linear_values, tf.nn.softmax(linear_values)
+
+
+def get_activation_function(name):
+    return {
+        'sigmoid': tf.sigmoid,
+        'tanh': tf.tanh,
+        'relu': tf.nn.relu
+    }[name]
+
+def get_optimizer(name, learning_rate):
+
+    if name == 'gradientdescent':
+        return tf.train.GradientDescentOptimizer(learning_rate)
+    elif name == 'adam':
+        return tf.train.AdamOptimizer(learning_rate=learning_rate)
+
+    raise ValueError('The provided optimizer is not valid')
 

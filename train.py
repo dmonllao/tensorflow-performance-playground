@@ -40,9 +40,6 @@ start_time = time.clock()
 n_features, n_classes, n_hidden = inputs.get_n_neurons(args.n_features,
     args.n_classes, args.n_hidden, training_datasets)
 
-# Activation function.
-activation = inputs.get_activation_function(args.activation)
-
 # Calculate learning rate decay.
 lr_decay, decay_steps = inputs.calculate_lr_decay(args.start_lr,
                                            args.end_lr,
@@ -55,7 +52,8 @@ file_path = os.path.dirname(os.path.realpath(__file__))
 dir_path = (
     'batchsize_' + str(args.batch_size) + '-epoch_' + str(args.num_epochs) +
     '-learningrate_' + str(args.start_lr) +
-    '-decay_' + str(lr_decay) + '-activation_' + args.activation
+    '-decay_' + str(lr_decay) + '-activation_' + args.activation +
+    '-keepprob_' + str(args.keep_prob)
 )
 tensor_logdir = os.path.join(file_path, 'summaries', dir_path, str(time.time()))
 
@@ -84,8 +82,8 @@ elif input_method == 'dataset':
 
 # Build graph.
 train_step, global_step, test_accuracy, model_vars = nn.build_graph(
-    n_features, n_hidden, n_classes, x, y_, activation, args.start_lr,
-    test_data=test_data, keep_prob=args.keep_prob,
+    n_features, n_hidden, n_classes, x, y_, args.activation, args.start_lr,
+    test_data=test_data, keep_prob=args.keep_prob, optimizer=args.optimizer,
     learning_rate_decay=lr_decay, decay_steps=decay_steps)
 
 with tf.Session() as sess:
@@ -108,11 +106,6 @@ with tf.Session() as sess:
                 _, summary = sess.run([train_step, merged])
                 global_step_value = sess.run(global_step)
                 file_writer.add_summary(summary, global_step_value)
-
-                # Output test dataset accuracy.
-                if global_step_value % 10 == 0:
-                    print('Test accuracy: ' + str(sess.run(test_accuracy)))
-
 
         except tf.errors.OutOfRangeError:
             print('Training finished')
@@ -154,9 +147,7 @@ with tf.Session() as sess:
                     global_step_value = sess.run(global_step)
                     file_writer.add_summary(summary, global_step_value)
 
-                    # Output test dataset accuracy.
-                    if global_step_value % 10 == 0:
-                        print('Test accuracy: ' + str(sess.run(test_accuracy)))
+    print('Test accuracy: ' + str(sess.run(test_accuracy)))
 
 end_time = time.clock()
 
