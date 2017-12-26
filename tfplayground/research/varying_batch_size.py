@@ -9,63 +9,82 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-import inputs
-import nn
+import tfplayground.inputs as inputs
+import tfplayground.nn as nn
 
 n_threads = 1
 input_method = 'oldschool' # 'oldschool', 'dataset' or 'pipeline'.
 
 
-def batch_logarithmic_sizes(start_batch_size, end_batch_size, num_epochs):
+def batch_log_increase_sizes(min_batch_size, max_batch_size, num_epochs):
     """"Logarithmic scale of batch sizes of size num_epochs"""
 
-    multiplier = inputs.logarithmic_multiplier(start_batch_size, end_batch_size, num_epochs)
+    multiplier = inputs.log_multiplier(min_batch_size, max_batch_size, num_epochs)
     print('Batch logarithmic multiplier: ' + str(multiplier))
 
-    sizes = [start_batch_size]
+    sizes = [min_batch_size]
     for i in range(1, num_epochs):
         log = math.log(i + 1, multiplier)
-        sizes.append(int(start_batch_size * log))
+        sizes.append(int(min_batch_size * log))
 
-    print(sizes)
     return sizes
 
 
-def batch_exponential_sizes(start_batch_size, end_batch_size, num_epochs):
+def batch_log_decrease_sizes(min_batch_size, max_batch_size, num_epochs):
+    """"Exponential reduction of batch sizes of size num_epochs"""
+
+    return batch_exp_increase_sizes(min_batch_size, max_batch_size, num_epochs)
+
+
+def batch_exp_increase_sizes(min_batch_size, max_batch_size, num_epochs):
     """"Exponential scale of batch sizes of size num_epochs"""
 
-    multiplier = inputs.exponential_multiplier(start_batch_size, end_batch_size, num_epochs - 1)
+    multiplier = inputs.exp_multiplier(min_batch_size, max_batch_size, num_epochs - 1)
     print('Batch exponential multiplier: ' + str(multiplier))
 
-    sizes = [start_batch_size]
+    sizes = [min_batch_size]
     for i in range(1, num_epochs):
         exp = math.pow(multiplier, i)
-        sizes.append(int(start_batch_size * exp))
+        sizes.append(int(min_batch_size * exp))
 
-    print(sizes)
     return sizes
 
 
-def batch_linear_sizes(start_batch_size, end_batch_size, num_epochs):
+def batch_exp_decrease_sizes(min_batch_size, max_batch_size, num_epochs):
+    """"Exponential reduction of batch sizes of size num_epochs"""
+
+    # Reversing max and min batch size arguments so we reuse batch_log_increase_sizes().
+    log_inc = batch_log_increase_sizes(min_batch_size, max_batch_size, num_epochs)
+    return list(reversed(log_inc))
+
+
+def batch_linear_increase_sizes(min_batch_size, max_batch_size, num_epochs):
     """"Linear scale of batch sizes of size num_epochs"""
 
-    addition = (end_batch_size - start_batch_size) / (num_epochs - 1)
+    addition = (max_batch_size - min_batch_size) / (num_epochs - 1)
     print('Batch linear addition: ' + str(addition))
-    sizes = [start_batch_size]
+    sizes = [min_batch_size]
     for i in range(1, num_epochs):
-        sizes.append(start_batch_size + (addition * i))
+        sizes.append(min_batch_size + (addition * i))
 
-    print(sizes)
     return sizes
+
+
+def batch_linear_decrease_sizes(min_batch_size, max_batch_size, num_epochs):
+    linear_increase = batch_linear_increase_sizes(min_batch_size, max_batch_size, num_epochs)
+    return list(reversed(linear_increase))
 
 
 ############################################
 
-parser = inputs.args_parser('Train the neural network using an incremental batch size.')
-parser.add_argument('--end_batch_size', '-eb', dest='end_batch_size', type=int,
+parser = inputs.args_parser('Train the neural network using varying batch sizes.')
+parser.add_argument('--min_batch_size', '-minb', dest='min_batch_size', type=int,
+                    default=10000, help='Min batch size to use.')
+parser.add_argument('--max_batch_size', '-maxb', dest='max_batch_size', type=int,
                     default=10000, help='Whetever can be fit into the system memory.')
 parser.add_argument('--increment', '-i', dest='increment_method', type=str,
-                    choices=['logarithmic', 'exponential', 'linear'],
+                    choices=['log_increase', 'exp_increase', 'exp_decrease',
+                        'linear_increase', 'log_decrease', 'linear_decrease'],
                     default='linear', help='How should the batch size increase')
 
 args = parser.parse_args()
@@ -89,8 +108,7 @@ n_features, n_classes, n_hidden = inputs.get_n_neurons(args.n_features,
 
 # Batch size increment method.
 increment_method = 'batch_' + args.increment_method + '_sizes'
-batch_sizes = locals()[increment_method](args.batch_size, args.end_batch_size, args.num_epochs)
-
+batch_sizes = locals()[increment_method](args.min_batch_size, args.max_batch_size, args.num_epochs)
 
 # Calculate learning rate decay (using the average batch size as batch size).
 avg_batch_size = np.sum(batch_sizes) / len(batch_sizes)
@@ -101,10 +119,10 @@ lr_decay, decay_steps = inputs.calculate_lr_decay(args.start_lr,
                                            args.num_epochs)
 
 # Results logging.
-file_path = os.path.dirname(os.path.realpath(__file__))
+file_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 dir_path = (
-    'increment_' + str(args.increment_method) +
-    '-batchsize_' + str(args.batch_size) + '-endbatchsize_' + str(args.end_batch_size) +
+    'variation_' + str(args.increment_method) +
+    '-minbatchsize_' + str(args.min_batch_size) + '-maxbatchsize_' + str(args.max_batch_size) +
     '-epoch_' + str(args.num_epochs) +
     '-learningrate_' + str(args.start_lr) +
     '-decay_' + str(lr_decay) + '-activation_' + args.activation +

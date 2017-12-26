@@ -7,12 +7,12 @@ import pandas as pd
 import tensorflow as tf
 
 
-def exponential_multiplier(start, end, num_epochs):
+def exp_multiplier(start, end, num_epochs):
     percent = float(end) / float(start)
     return np.power(percent, 1. / num_epochs)
 
 
-def logarithmic_multiplier(start, end, num_epochs):
+def log_multiplier(start, end, num_epochs):
     percent = float(end) / float(start)
     return np.power(num_epochs, 1 / percent)
 
@@ -26,7 +26,7 @@ def calculate_lr_decay(start_lr, end_lr, batch_size,
         return 1, batch_size
 
     # Set learning rate decay so that it is the end learning rate after num_epoch.
-    learning_rate_decay = exponential_multiplier(start_lr, end_lr, num_epochs)
+    learning_rate_decay = exp_multiplier(start_lr, end_lr, num_epochs)
 
     # The learning rate should decay after each epoch, otherwise the samples at
     # the end of the dataset have less weight.

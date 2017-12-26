@@ -14,7 +14,7 @@ with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
 version = '0.0.1'
 
 setup(
-    name='tensorflow-performance-playground',
+    name='tfplayground',
 
     version=version,
 

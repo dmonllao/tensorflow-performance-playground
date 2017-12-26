@@ -14,7 +14,9 @@ import nn
 n_threads = 1
 input_method = 'oldschool' # 'oldschool', 'dataset' or 'pipeline'.
 
-
+#'--limiter', '-l', 'Set results limiter', choices=['time', 'epochs', 'testaccuracy']
+#'--winner-metric', '-w', 'Sets the metric that determined the best classifier', choices=['time', 'testaccuracy', 'epochs']
+#Can a teacher looking at logs be better than a machine detecting which students will not submit assignments on time?
 
 
 ############################################
@@ -48,7 +50,7 @@ lr_decay, decay_steps = inputs.calculate_lr_decay(args.start_lr,
                                            args.num_epochs)
 
 # Results logging.
-file_path = os.path.dirname(os.path.realpath(__file__))
+file_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 dir_path = (
     'batchsize_' + str(args.batch_size) + '-epoch_' + str(args.num_epochs) +
     '-learningrate_' + str(args.start_lr) +
