@@ -36,6 +36,10 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
             ),
         }
 
+    with tf.name_scope('batch'):
+        shape = tf.shape(x)
+        tf.summary.scalar("batch_size", shape[0])
+
     # Predicted y.
     with tf.name_scope('loss'):
 
