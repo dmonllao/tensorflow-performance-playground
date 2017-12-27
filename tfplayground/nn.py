@@ -35,6 +35,10 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
                 name='output-bias'
             ),
         }
+        tf.summary.histogram('weights-input-hidden', W['input-hidden'])
+        tf.summary.histogram('weights-hidden-output', W['hidden-output'])
+        tf.summary.histogram('bias-input-hidden', b['input-hidden'])
+        tf.summary.histogram('bias-hidden-output', b['hidden-output'])
 
     with tf.name_scope('batch'):
         shape = tf.shape(x)
@@ -43,13 +47,17 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
     # Predicted y.
     with tf.name_scope('loss'):
 
-        x = tf.nn.dropout(x, keep_prob)
-        linear_values, y = feed_forward(x, (W, b), activation_function)
-        tf.summary.histogram('predicted_values', linear_values)
-        tf.summary.histogram('activations', y)
+        if keep_prob < 1:
+            x = tf.nn.dropout(x, keep_prob)
+
+        predicted_hidden, activation_hidden, predicted_output, y = feed_forward(x, (W, b), activation_function)
+        tf.summary.histogram('predicted_hidden', predicted_hidden)
+        tf.summary.histogram('activation_hidden', activation_hidden)
+        tf.summary.histogram('predicted_values', predicted_output)
+        tf.summary.histogram('activation_output', y)
 
         loss = tf.reduce_mean(
-            tf.nn.softmax_cross_entropy_with_logits(logits=linear_values, labels=y_)
+            tf.nn.softmax_cross_entropy_with_logits(logits=predicted_output, labels=y_)
         )
         tf.summary.scalar("loss", loss)
 
@@ -60,7 +68,7 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
 
         # Calculate the test dataset accuracy.
         if test_data is not False:
-            test_probs, test_softmax = feed_forward(test_data[0], (W, b), activation_function)
+            _, _, test_probs, test_softmax = feed_forward(test_data[0], (W, b), activation_function)
             correct_prediction = tf.equal(tf.argmax(test_softmax, 1), tf.argmax(test_data[1], 1))
             test_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             tf.summary.scalar('test_accuracy', test_accuracy)
@@ -86,12 +94,13 @@ def feed_forward(x, model_vars, activation_function):
     W = model_vars[0]
     b = model_vars[1]
 
-    hidden = activation_function(tf.matmul(x, W['input-hidden']) + b['input-hidden'],
-                     name='activation-function')
+    predicted_hidden = tf.add(tf.matmul(x, W['input-hidden']), b['input-hidden'])
+    activation_hidden = activation_function(predicted_hidden, name='activation-hidden')
 
-    linear_values = tf.matmul(hidden, W['hidden-output']) + b['hidden-output']
+    predicted_output = tf.add(tf.matmul(activation_hidden, W['hidden-output']), b['hidden-output'])
+    activation_output = tf.nn.softmax(predicted_output, name='softmax-output')
 
-    return linear_values, tf.nn.softmax(linear_values)
+    return predicted_hidden, activation_hidden, predicted_output, activation_output
 
 
 def get_activation_function(name):
