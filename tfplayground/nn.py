@@ -3,7 +3,8 @@ import tensorflow as tf
 
 def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
                 keep_prob=1, optimizer='gradientdescent', learning_rate_decay=0.9,
-                test_data=False, decay_steps=1000, normalize_input=''):
+                test_data=False, decay_steps=1000, normalize_input='',
+                l2_regularization=0.):
     """Builds the computational graph without feeding any data in"""
 
     # Activation function.
@@ -66,10 +67,14 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
 
     # Cost function.
     with tf.name_scope('loss'):
-        loss = tf.reduce_mean(
-            tf.nn.softmax_cross_entropy_with_logits(logits=predicted_output, labels=y_)
-        )
-        tf.summary.scalar("loss", loss)
+        loss = tf.nn.softmax_cross_entropy_with_logits(logits=predicted_output, labels=y_)
+        tf.summary.scalar("loss", tf.reduce_mean(loss))
+        if l2_regularization > 0.:
+            l2_loss = tf.nn.l2_loss(W['hidden-output'])
+            loss = tf.reduce_mean(loss + (l2_regularization * l2_loss))
+            tf.summary.scalar("regularized_loss", loss)
+        else:
+            loss = tf.reduce_mean(loss)
 
     # Training and test accuracy.
     with tf.name_scope('accuracy'):

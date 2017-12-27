@@ -214,6 +214,8 @@ def args_parser(description):
                         'Automatically set to a value between n_features and n_classes if not value provided.')
     parser.add_argument('--keep_prob', '-d', dest='keep_prob', type=float, default=1,
                         help='Form dropout regularization')
+    parser.add_argument('--l2_regularization', '-l2', dest='l2_regularization', type=float, default=0.,
+                        help='L2 regularization term. 0 = no regularization')
     parser.add_argument('--start_learning_rate', '-slr', dest='start_lr', type=float, default=0.5,
                         help='Starting learning rate. It will decrease after each epoch')
     parser.add_argument('--end_learning_rate', '-elr', dest='end_lr', type=float, default=0.005,

@@ -147,7 +147,7 @@ train_step, global_step, test_accuracy, model_vars = nn.build_graph(
     n_features, n_hidden, n_classes, x, y_, args.activation, args.start_lr,
     test_data=test_data, keep_prob=args.keep_prob, optimizer=args.optimizer,
     learning_rate_decay=lr_decay, decay_steps=decay_steps,
-    normalize_input=args.normalize_input)
+    normalize_input=args.normalize_input, l2_regularization=args.l2_regularization)
 
 with tf.Session() as sess:
 

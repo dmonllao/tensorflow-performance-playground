@@ -3,7 +3,8 @@
 ACTIVATION='tanh'
 NUM_EPOCH=30
 N_HIDDEN=100
-KEEP_PROB=0.9
+KEEP_PROB=0.9 # Use 1. for no dropout regularization.
+L2_REG_TERM=0.01 # Use 0. for no l2 regularization.
 OPTIMIZER='adam'
 INPUT_NORM='l2'
 
@@ -32,67 +33,73 @@ python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_da
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
     -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
-    -d="$KEEP_PROB" -o=$OPTIMIZER -i='log_increase' --norm="$INPUT_NORM"
+    -d="$KEEP_PROB" -o=$OPTIMIZER -i='log_increase' --norm="$INPUT_NORM" \
+    -l2="$L2_REG_TERM"
 
 # Linear increment from $MIN_BATCH_SIZE to $MAX_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
     -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
-    -d="$KEEP_PROB" -o=$OPTIMIZER -i='linear_increase' --norm="$INPUT_NORM"
+    -d="$KEEP_PROB" -o=$OPTIMIZER -i='linear_increase' --norm="$INPUT_NORM" \
+    -l2="$L2_REG_TERM"
 
 # Linear decrease from $MAX_BATCH_SIZE to $MIN_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
     -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
-    -d="$KEEP_PROB" -o=$OPTIMIZER -i='linear_decrease' --norm="$INPUT_NORM"
+    -d="$KEEP_PROB" -o=$OPTIMIZER -i='linear_decrease' --norm="$INPUT_NORM" \
+    -l2="$L2_REG_TERM"
 
 # Logarithmic decrease from $MAX_BATCH_SIZE to $MIN_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
     -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
-    -d="$KEEP_PROB" -o=$OPTIMIZER -i='log_decrease' --norm="$INPUT_NORM"
+    -d="$KEEP_PROB" -o=$OPTIMIZER -i='log_decrease' --norm="$INPUT_NORM" \
+    -l2="$L2_REG_TERM"
 
 # Exponential increment from $MIN_BATCH_SIZE to $MAX_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
     -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
-    -d="$KEEP_PROB" -o=$OPTIMIZER -i='exp_increase' --norm="$INPUT_NORM"
+    -d="$KEEP_PROB" -o=$OPTIMIZER -i='exp_increase' --norm="$INPUT_NORM" \
+    -l2="$L2_REG_TERM"
 
 # Exponential decrease from $MAX_BATCH_SIZE to $MIN_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
     -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
-    -d="$KEEP_PROB" -o=$OPTIMIZER -i='exp_decrease' --norm="$INPUT_NORM"
+    -d="$KEEP_PROB" -o=$OPTIMIZER -i='exp_decrease' --norm="$INPUT_NORM" \
+    -l2="$L2_REG_TERM"
 
 # Fixed batch size $MIN_BATCH_SIZE
 python tfplayground/train.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -o=$OPTIMIZER -e=$NUM_EPOCH \
     -nh=$N_HIDDEN -b=$MIN_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
-    -d="$KEEP_PROB" --norm="$INPUT_NORM"
+    -d="$KEEP_PROB" --norm="$INPUT_NORM" -l2="$L2_REG_TERM"
 
 # Fixed batch size $MID_BATCH_SIZE
 python tfplayground/train.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -o=$OPTIMIZER -e=$NUM_EPOCH \
     -nh=$N_HIDDEN -b=$MID_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
-    -d="$KEEP_PROB" --norm="$INPUT_NORM"
+    -d="$KEEP_PROB" --norm="$INPUT_NORM" -l2="$L2_REG_TERM"
 
 # Fixed to $MAX_BATCH_SIZE.
 python tfplayground/train.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -o=$OPTIMIZER -e=$NUM_EPOCH \
     -nh=$N_HIDDEN -b=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
-    -d="$KEEP_PROB" --norm="$INPUT_NORM"
+    -d="$KEEP_PROB" --norm="$INPUT_NORM" -l2="$L2_REG_TERM"
 
 # Fixed batch size of all training set.
 python tfplayground/train.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -o=$OPTIMIZER -e=$NUM_EPOCH \
     -nh=$N_HIDDEN -b=$N_SAMPLES -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
-    -d="$KEEP_PROB" --norm="$INPUT_NORM"
+    -d="$KEEP_PROB" --norm="$INPUT_NORM" -l2="$L2_REG_TERM"
