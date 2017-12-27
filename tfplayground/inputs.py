@@ -206,6 +206,8 @@ def args_parser(description):
                         help='Number of times the algorithm will be trained using all provided training data.')
     parser.add_argument('--activation', '-a', dest='activation', type=str, default='tanh',
                         help='The activation function', choices=['sigmoid', 'tanh', 'relu'])
+    parser.add_argument('--normalization', '-norm', dest='normalize_input', type=str, default='',
+                        help='Normalize inputs', choices=['', 'l2'])
     parser.add_argument('--optimizer', '-o', dest='optimizer', type=str, default='gradientdescent',
                         help='Optimization method', choices=['gradientdescent', 'adam'])
     parser.add_argument('--n_hidden', '-nh', dest='n_hidden', type=int, help='Number of hidden layer neurons. ' +

@@ -16,7 +16,7 @@ n_threads = 1
 input_method = 'oldschool' # 'oldschool', 'dataset' or 'pipeline'.
 
 
-def batch_log_increase_sizes(min_batch_size, max_batch_size, num_epochs):
+def batch_log_increase_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
     """"Logarithmic scale of batch sizes of size num_epochs"""
 
     multiplier = inputs.log_multiplier(min_batch_size, max_batch_size, num_epochs)
@@ -30,13 +30,15 @@ def batch_log_increase_sizes(min_batch_size, max_batch_size, num_epochs):
     return sizes
 
 
-def batch_log_decrease_sizes(min_batch_size, max_batch_size, num_epochs):
+def batch_log_decrease_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
     """"Exponential reduction of batch sizes of size num_epochs"""
 
-    return batch_exp_increase_sizes(min_batch_size, max_batch_size, num_epochs)
+    exp_inc = batch_exp_increase_sizes(min_batch_size, max_batch_size,
+                                    num_epochs, n_samples)
+    return list(reversed(exp_inc))
 
 
-def batch_exp_increase_sizes(min_batch_size, max_batch_size, num_epochs):
+def batch_exp_increase_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
     """"Exponential scale of batch sizes of size num_epochs"""
 
     multiplier = inputs.exp_multiplier(min_batch_size, max_batch_size, num_epochs - 1)
@@ -50,15 +52,16 @@ def batch_exp_increase_sizes(min_batch_size, max_batch_size, num_epochs):
     return sizes
 
 
-def batch_exp_decrease_sizes(min_batch_size, max_batch_size, num_epochs):
+def batch_exp_decrease_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
     """"Exponential reduction of batch sizes of size num_epochs"""
 
     # Reversing max and min batch size arguments so we reuse batch_log_increase_sizes().
-    log_inc = batch_log_increase_sizes(min_batch_size, max_batch_size, num_epochs)
+    log_inc = batch_log_increase_sizes(min_batch_size, max_batch_size,
+                                       num_epochs, n_samples)
     return list(reversed(log_inc))
 
 
-def batch_linear_increase_sizes(min_batch_size, max_batch_size, num_epochs):
+def batch_linear_increase_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
     """"Linear scale of batch sizes of size num_epochs"""
 
     addition = (max_batch_size - min_batch_size) / (num_epochs - 1)
@@ -70,9 +73,10 @@ def batch_linear_increase_sizes(min_batch_size, max_batch_size, num_epochs):
     return sizes
 
 
-def batch_linear_decrease_sizes(min_batch_size, max_batch_size, num_epochs):
-    linear_increase = batch_linear_increase_sizes(min_batch_size, max_batch_size, num_epochs)
-    return list(reversed(linear_increase))
+def batch_linear_decrease_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
+    linear_inc = batch_linear_increase_sizes(min_batch_size, max_batch_size,
+                                                  num_epochs, n_samples)
+    return list(reversed(linear_inc))
 
 
 ############################################
@@ -108,7 +112,8 @@ n_features, n_classes, n_hidden = inputs.get_n_neurons(args.n_features,
 
 # Batch size increment method.
 increment_method = 'batch_' + args.increment_method + '_sizes'
-batch_sizes = locals()[increment_method](args.min_batch_size, args.max_batch_size, args.num_epochs)
+batch_sizes = locals()[increment_method](args.min_batch_size, args.max_batch_size,
+                                         args.num_epochs, args.n_samples)
 
 # Calculate learning rate decay (using the average batch size as batch size).
 avg_batch_size = np.sum(batch_sizes) / len(batch_sizes)
@@ -141,7 +146,8 @@ y_ = tf.placeholder(tf.float32, [None, n_classes])
 train_step, global_step, test_accuracy, model_vars = nn.build_graph(
     n_features, n_hidden, n_classes, x, y_, args.activation, args.start_lr,
     test_data=test_data, keep_prob=args.keep_prob, optimizer=args.optimizer,
-    learning_rate_decay=lr_decay, decay_steps=decay_steps)
+    learning_rate_decay=lr_decay, decay_steps=decay_steps,
+    normalize_input=args.normalize_input)
 
 with tf.Session() as sess:
 

@@ -3,14 +3,26 @@ import tensorflow as tf
 
 def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
                 keep_prob=1, optimizer='gradientdescent', learning_rate_decay=0.9,
-                test_data=False, decay_steps=1000):
+                test_data=False, decay_steps=1000, normalize_input=''):
     """Builds the computational graph without feeding any data in"""
 
     # Activation function.
     activation_function = get_activation_function(activation)
 
+    # Input data info.
+    with tf.name_scope('inputs'):
+        tf.summary.histogram('x', x)
+
+        if normalize_input != '':
+            input_normalization = get_input_normalization(normalize_input)
+            x = input_normalization(x, 0)
+            tf.summary.histogram('x_normalized', x)
+
+        shape = tf.shape(x)
+        tf.summary.scalar('batch_size', shape[0])
+
     # Variables for computed stuff, we need to initialise them now.
-    with tf.name_scope('initialise-vars'):
+    with tf.name_scope('weights'):
 
         test_accuracy = tf.Variable(0.0, dtype=tf.float32)
 
@@ -35,17 +47,13 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
                 name='output-bias'
             ),
         }
-        tf.summary.histogram('weights-input-hidden', W['input-hidden'])
-        tf.summary.histogram('weights-hidden-output', W['hidden-output'])
-        tf.summary.histogram('bias-input-hidden', b['input-hidden'])
-        tf.summary.histogram('bias-hidden-output', b['hidden-output'])
+        tf.summary.histogram('W_input-hidden', W['input-hidden'])
+        tf.summary.histogram('W_hidden-output', W['hidden-output'])
+        tf.summary.histogram('b_input-hidden', b['input-hidden'])
+        tf.summary.histogram('b_hidden-output', b['hidden-output'])
 
-    with tf.name_scope('batch'):
-        shape = tf.shape(x)
-        tf.summary.scalar("batch_size", shape[0])
-
-    # Predicted y.
-    with tf.name_scope('loss'):
+    # Predicted values and activations.
+    with tf.name_scope('feed_forward'):
 
         if keep_prob < 1:
             x = tf.nn.dropout(x, keep_prob)
@@ -53,14 +61,17 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
         predicted_hidden, activation_hidden, predicted_output, y = feed_forward(x, (W, b), activation_function)
         tf.summary.histogram('predicted_hidden', predicted_hidden)
         tf.summary.histogram('activation_hidden', activation_hidden)
-        tf.summary.histogram('predicted_values', predicted_output)
+        tf.summary.histogram('predicted_output', predicted_output)
         tf.summary.histogram('activation_output', y)
 
+    # Cost function.
+    with tf.name_scope('loss'):
         loss = tf.reduce_mean(
             tf.nn.softmax_cross_entropy_with_logits(logits=predicted_output, labels=y_)
         )
         tf.summary.scalar("loss", loss)
 
+    # Training and test accuracy.
     with tf.name_scope('accuracy'):
         correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -109,6 +120,13 @@ def get_activation_function(name):
         'tanh': tf.tanh,
         'relu': tf.nn.relu
     }[name]
+
+
+def get_input_normalization(name):
+    return {
+        'l2': tf.nn.l2_normalize
+    }[name]
+
 
 def get_optimizer(name, learning_rate):
 
