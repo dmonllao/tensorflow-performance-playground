@@ -11,6 +11,11 @@ N_SAMPLES=60000
 N_FEATURES=784
 N_CLASSES=10
 
+MIN_BATCH_SIZE=100
+MAX_BATCH_SIZE=10000
+# Only used with static batch size.
+MID_BATCH_SIZE=1000
+
 # Exponential decay between the start learning rate and the end learning rate.
 # Better use the same value for both vars if using varying_batch_size as
 # the required steps to apply the next decay are calculated using averages.
@@ -21,66 +26,72 @@ set -e
 
 python clear_summaries.py
 
-# Log increment from 100 to 10000.
+# Log increment from $MIN_BATCH_SIZE to $MAX_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
-    -minb=100 -maxb=10000 -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
+    -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
     -d="$KEEP_PROB" -o=$OPTIMIZER -i='log_increase'
 
-# Linear increment from 100 to 10000.
+# Linear increment from $MIN_BATCH_SIZE to $MAX_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
-    -minb=100 -maxb=10000 -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
+    -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
     -d="$KEEP_PROB" -o=$OPTIMIZER -i='linear_increase'
 
-# Linear decrease from 10000 to 100.
+# Linear decrease from $MAX_BATCH_SIZE to $MIN_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
-    -minb=100 -maxb=10000 -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
+    -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
     -d="$KEEP_PROB" -o=$OPTIMIZER -i='linear_decrease'
 
-# Logarithmic decrease from 10000 to 100.
+# Logarithmic decrease from $MAX_BATCH_SIZE to $MIN_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
-    -minb=100 -maxb=10000 -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
+    -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
     -d="$KEEP_PROB" -o=$OPTIMIZER -i='log_decrease'
 
-# Exponential increment from 100 to 10000.
+# Exponential increment from $MIN_BATCH_SIZE to $MAX_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
-    -minb=100 -maxb=10000 -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
+    -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
     -d="$KEEP_PROB" -o=$OPTIMIZER -i='exp_increase'
 
-# Exponential decrease from 10000 to 100.
+# Exponential decrease from $MAX_BATCH_SIZE to $MIN_BATCH_SIZE.
 python tfplayground/research/varying_batch_size.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -e=$NUM_EPOCH -nh=$N_HIDDEN \
-    -minb=100 -maxb=10000 -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
+    -minb=$MIN_BATCH_SIZE -maxb=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
     -d="$KEEP_PROB" -o=$OPTIMIZER -i='exp_decrease'
 
-exit 0
-# Fixed batch size 100
+# Fixed batch size $MIN_BATCH_SIZE
 python tfplayground/train.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -o=$OPTIMIZER -e=$NUM_EPOCH \
-    -nh=$N_HIDDEN -b=100 -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
+    -nh=$N_HIDDEN -b=$MIN_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
     -d="$KEEP_PROB"
 
-# Fixed to 10000.
+# Fixed batch size $MID_BATCH_SIZE
 python tfplayground/train.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -o=$OPTIMIZER -e=$NUM_EPOCH \
-    -nh=$N_HIDDEN -b=10000 -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
+    -nh=$N_HIDDEN -b=$MID_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
+    -d="$KEEP_PROB"
+
+# Fixed to $MAX_BATCH_SIZE.
+python tfplayground/train.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
+    /home/davidm/Desktop/mnist_data/mnist_test.csv \
+    -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -o=$OPTIMIZER -e=$NUM_EPOCH \
+    -nh=$N_HIDDEN -b=$MAX_BATCH_SIZE -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
     -d="$KEEP_PROB"
 
 # Fixed batch size of all training set.
 python tfplayground/train.py /home/davidm/Desktop/mnist_data/mnist_train.csv \
     /home/davidm/Desktop/mnist_data/mnist_test.csv \
     -m=$N_SAMPLES -n=$N_FEATURES -c=$N_CLASSES -l -o=$OPTIMIZER -e=$NUM_EPOCH \
-    -nh=$N_HIDDEN -b=60000 -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
+    -nh=$N_HIDDEN -b=$N_SAMPLES -slr=$START_LEARNING_RATE -elr=$END_LEARNING_RATE -a="$ACTIVATION" \
     -d="$KEEP_PROB"

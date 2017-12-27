@@ -23,15 +23,15 @@ To view the results:
     tensorboard --logdir=summaries
 
 
-## Results comparison
+## Compare results
 
-Tune comparison.sh script parameters (and executed scripts if necessary):
+Tune compare.sh script parameters (and executed scripts if necessary):
 
-    vim comparison.sh
+    vim compare.sh
 
-Run comparison script:
+Run compare script:
 
-    ./comparison.sh
+    ./compare.sh
 
 Start tensorboard to see results as they are available:
 
