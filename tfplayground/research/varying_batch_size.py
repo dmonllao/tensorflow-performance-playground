@@ -17,7 +17,7 @@ input_method = 'oldschool' # 'oldschool', 'dataset' or 'pipeline'.
 
 
 def batch_log_increase_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
-    """"Logarithmic scale of batch sizes of size num_epochs"""
+    """"Logarithmic scale of batch sizes"""
 
     multiplier = inputs.log_multiplier(min_batch_size, max_batch_size, num_epochs)
     print('Batch logarithmic multiplier: ' + str(multiplier))
@@ -30,16 +30,8 @@ def batch_log_increase_sizes(min_batch_size, max_batch_size, num_epochs, n_sampl
     return sizes
 
 
-def batch_log_decrease_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
-    """"Exponential reduction of batch sizes of size num_epochs"""
-
-    exp_inc = batch_exp_increase_sizes(min_batch_size, max_batch_size,
-                                    num_epochs, n_samples)
-    return list(reversed(exp_inc))
-
-
 def batch_exp_increase_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
-    """"Exponential scale of batch sizes of size num_epochs"""
+    """"Exponential scale of batch sizes"""
 
     multiplier = inputs.exp_multiplier(min_batch_size, max_batch_size, num_epochs - 1)
     print('Batch exponential multiplier: ' + str(multiplier))
@@ -52,17 +44,8 @@ def batch_exp_increase_sizes(min_batch_size, max_batch_size, num_epochs, n_sampl
     return sizes
 
 
-def batch_exp_decrease_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
-    """"Exponential reduction of batch sizes of size num_epochs"""
-
-    # Reversing max and min batch size arguments so we reuse batch_log_increase_sizes().
-    log_inc = batch_log_increase_sizes(min_batch_size, max_batch_size,
-                                       num_epochs, n_samples)
-    return list(reversed(log_inc))
-
-
 def batch_linear_increase_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
-    """"Linear scale of batch sizes of size num_epochs"""
+    """"Linear scale of batch sizes"""
 
     addition = (max_batch_size - min_batch_size) / (num_epochs - 1)
     print('Batch linear addition: ' + str(addition))
@@ -71,6 +54,22 @@ def batch_linear_increase_sizes(min_batch_size, max_batch_size, num_epochs, n_sa
         sizes.append(min_batch_size + (addition * i))
 
     return sizes
+
+
+def batch_log_decrease_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
+    """"Logarithmic reduction of batch sizes"""
+
+    log_inc = batch_log_increase_sizes(min_batch_size, max_batch_size,
+                                    num_epochs, n_samples)
+    return list(reversed(log_inc))
+
+
+def batch_exp_decrease_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
+    """"Exponential reduction of batch sizes"""
+
+    exp_inc = batch_exp_increase_sizes(min_batch_size, max_batch_size,
+                                       num_epochs, n_samples)
+    return list(reversed(exp_inc))
 
 
 def batch_linear_decrease_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
