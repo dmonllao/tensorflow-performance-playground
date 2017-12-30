@@ -27,31 +27,44 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
 
         test_accuracy = tf.Variable(0.0, dtype=tf.float32)
 
-        W = {
-            'input-hidden': tf.Variable(
-                tf.random_normal([n_features, n_hidden], dtype=tf.float32),
-                name='input-to-hidden-weights'
-            ),
-            'hidden-output': tf.Variable(
-                tf.random_normal([n_hidden, n_classes], dtype=tf.float32),
-                name='hidden-to-output-weights'
-            ),
-        }
+        W = []
+        b = []
 
-        b = {
-            'input-hidden': tf.Variable(
-                tf.random_normal([n_hidden], dtype=tf.float32),
-                name='hidden-bias'
-            ),
-            'hidden-output': tf.Variable(
-                tf.random_normal([n_classes], dtype=tf.float32),
-                name='output-bias'
-            ),
-        }
-        tf.summary.histogram('W_input-hidden', W['input-hidden'])
-        tf.summary.histogram('W_hidden-output', W['hidden-output'])
-        tf.summary.histogram('b_input-hidden', b['input-hidden'])
-        tf.summary.histogram('b_hidden-output', b['hidden-output'])
+        # Input to first hidden layer.
+        key = 'input-hidden_1'
+        W.append(tf.Variable(
+            tf.random_normal([n_features, n_hidden[0]], dtype=tf.float32)))
+        tf.summary.histogram('W_' + key, W[0])
+
+        b.append(tf.Variable(
+                tf.random_normal([n_hidden[0]], dtype=tf.float32)))
+        tf.summary.histogram('b_' + key, b[0])
+
+        for i in range(1, len(n_hidden)):
+
+            # +1 because of naming.
+            n_hidden_layer = i + 1
+
+            key = 'hidden_' + str(i) + '-hidden_' + str(n_hidden_layer)
+            W.append(tf.Variable(
+                tf.random_normal([n_hidden[i - 1], n_hidden[i]], dtype=tf.float32)))
+            tf.summary.histogram('W_' + key, W[i])
+
+            b.append(tf.Variable(
+                tf.random_normal([n_hidden[i]], dtype=tf.float32)))
+            tf.summary.histogram('b_' + key, b[i])
+
+
+        # Last hidden to output layer.
+        last_hidden = len(n_hidden) - 1
+        key = 'hidden_' + str(last_hidden + 1) + '-output'
+        W.append(tf.Variable(
+                tf.random_normal([n_hidden[last_hidden], n_classes], dtype=tf.float32)))
+        tf.summary.histogram('W_' + key, W[last_hidden])
+
+        b.append(tf.Variable(
+                tf.random_normal([n_classes], dtype=tf.float32)))
+        tf.summary.histogram('b_' + key, b[last_hidden])
 
     # Predicted values and activations.
     with tf.name_scope('feed_forward'):
@@ -59,9 +72,12 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
         if keep_prob < 1:
             x = tf.nn.dropout(x, keep_prob)
 
-        predicted_hidden, activation_hidden, predicted_output, y = feed_forward(x, (W, b), activation_function)
-        tf.summary.histogram('predicted_hidden', predicted_hidden)
-        tf.summary.histogram('activation_hidden', activation_hidden)
+        predicted, activation, predicted_output, y = feed_forward(x, (W, b), activation_function)
+
+        for i in range(len(predicted)):
+            tf.summary.histogram('predicted_' + str(i + 1), predicted[str(i)])
+            tf.summary.histogram('activation_' + str(i + 1), activation[str(i)])
+
         tf.summary.histogram('predicted_output', predicted_output)
         tf.summary.histogram('activation_output', y)
 
@@ -70,7 +86,7 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
         loss = tf.nn.softmax_cross_entropy_with_logits(logits=predicted_output, labels=y_)
         tf.summary.scalar("loss", tf.reduce_mean(loss))
         if l2_regularization > 0.:
-            l2_loss = tf.nn.l2_loss(W['hidden-output'])
+            l2_loss = tf.nn.l2_loss(W[-1])
             loss = tf.reduce_mean(loss + (l2_regularization * l2_loss))
             tf.summary.scalar("regularized_loss", loss)
         else:
@@ -84,8 +100,11 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
 
         # Calculate the test dataset accuracy.
         if test_data is not False:
-            _, _, test_probs, test_softmax = feed_forward(test_data[0], (W, b), activation_function)
-            correct_prediction = tf.equal(tf.argmax(test_softmax, 1), tf.argmax(test_data[1], 1))
+            test_x = tf.convert_to_tensor(test_data[0])
+            test_y = tf.convert_to_tensor(test_data[1])
+            _, _, test_probs, test_softmax = feed_forward(test_x, (W, b), activation_function)
+
+            correct_prediction = tf.equal(tf.argmax(test_softmax, 1), tf.argmax(test_y, 1))
             test_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             tf.summary.scalar('test_accuracy', test_accuracy)
 
@@ -110,13 +129,22 @@ def feed_forward(x, model_vars, activation_function):
     W = model_vars[0]
     b = model_vars[1]
 
-    predicted_hidden = tf.add(tf.matmul(x, W['input-hidden']), b['input-hidden'])
-    activation_hidden = activation_function(predicted_hidden, name='activation-hidden')
+    predicted = {}
+    activation = {}
 
-    predicted_output = tf.add(tf.matmul(activation_hidden, W['hidden-output']), b['hidden-output'])
+    predicted['0'] = tf.add(tf.matmul(x, W[0]), b[0])
+    activation['0'] = activation_function(predicted['0'])
+    for i in range(1, len(W) - 1):
+        predicted[str(i)] = tf.add(tf.matmul(activation[str(i - 1)], W[i]), b[i])
+        activation[str(i)] = activation_function(predicted[str(i)])
+
+    output_layer = len(W) - 1
+    predicted_output = tf.add(
+        tf.matmul(activation[str(output_layer - 1)], W[output_layer]),
+        b[-1])
     activation_output = tf.nn.softmax(predicted_output, name='softmax-output')
 
-    return predicted_hidden, activation_hidden, predicted_output, activation_output
+    return predicted, activation, predicted_output, activation_output
 
 
 def get_activation_function(name):

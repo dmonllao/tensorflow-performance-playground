@@ -1,5 +1,6 @@
 import csv
 import os
+import re
 import argparse
 
 import numpy as np
@@ -17,8 +18,8 @@ def log_multiplier(start, end, num_epochs):
     return np.power(num_epochs, 1 / percent)
 
 
-def calculate_lr_decay(start_lr, end_lr, batch_size,
-                       n_samples, num_epochs):
+def calc_constant_learning_rate_decay(start_lr, end_lr, batch_size,
+                                      n_samples, num_epochs):
     """Calculate approximately the optimal learning rate decay values"""
 
     # No decay.
@@ -115,7 +116,15 @@ def get_n_neurons(n_features, n_classes, n_hidden, training_datasets):
             n_classes = len(classes)
 
     if n_hidden == None:
+        # Number of units between n_features and n_classes.
         n_hidden = max(int((n_features - n_classes) / 2), 2)
+
+    # We checked that it contains a valid value during input validation.
+    n_hidden = eval(n_hidden)
+
+    if isinstance(n_hidden, int):
+        # Convert intput int or calculated n_hidden to single layer.
+        n_hidden = [n_hidden]
 
     return n_features, n_classes, n_hidden
 
@@ -210,8 +219,10 @@ def args_parser(description):
                         help='Normalize inputs', choices=['', 'l2'])
     parser.add_argument('--optimizer', '-o', dest='optimizer', type=str, default='gradientdescent',
                         help='Optimization method', choices=['gradientdescent', 'adam'])
-    parser.add_argument('--n_hidden', '-nh', dest='n_hidden', type=int, help='Number of hidden layer neurons. ' +
-                        'Automatically set to a value between n_features and n_classes if not value provided.')
+    parser.add_argument('--n_hidden', '-nh', dest='n_hidden', type=arg_n_hidden_type,
+                        help='Number of hidden layers and neurons. ' +
+                        'Specified as [X, Y, Z, ...]. Automatically set to a value ' +
+                        'between n_features and n_classes if not value provided.')
     parser.add_argument('--keep_prob', '-d', dest='keep_prob', type=float, default=1,
                         help='Form dropout regularization')
     parser.add_argument('--l2_regularization', '-l2', dest='l2_regularization', type=float, default=0.,
@@ -223,3 +234,14 @@ def args_parser(description):
                              'decrease from start_learning_rate')
 
     return parser
+
+def arg_n_hidden_type(s, pat=re.compile(r"[\[\]\ 0-9,]")):
+    if not pat.match(s):
+        raise argparse.ArgumentTypeError
+
+    try:
+        eval(s)
+    except SyntaxError:
+        raise argparse.ArgumentTypeError
+
+    return s

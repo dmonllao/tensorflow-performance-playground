@@ -116,11 +116,11 @@ batch_sizes = locals()[increment_method](args.min_batch_size, args.max_batch_siz
 
 # Calculate learning rate decay (using the average batch size as batch size).
 avg_batch_size = np.sum(batch_sizes) / len(batch_sizes)
-lr_decay, decay_steps = inputs.calculate_lr_decay(args.start_lr,
-                                           args.end_lr,
-                                           avg_batch_size,
-                                           args.n_samples,
-                                           args.num_epochs)
+lr_decay, decay_steps = inputs.calc_constant_learning_rate_decay(args.start_lr,
+                                                                 args.end_lr,
+                                                                 avg_batch_size,
+                                                                 args.n_samples,
+                                                                 args.num_epochs)
 
 # Results logging.
 file_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -147,6 +147,8 @@ train_step, global_step, test_accuracy, model_vars = nn.build_graph(
     test_data=test_data, keep_prob=args.keep_prob, optimizer=args.optimizer,
     learning_rate_decay=lr_decay, decay_steps=decay_steps,
     normalize_input=args.normalize_input, l2_regularization=args.l2_regularization)
+
+print('Training...')
 
 with tf.Session() as sess:
 
