@@ -1,9 +1,8 @@
 import tensorflow as tf
 
-
-def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
-                keep_prob=1, optimizer='gradientdescent', learning_rate_decay=0.9,
-                test_data=False, decay_steps=1000, normalize_input='',
+def build_graph(n_samples, n_features, n_hidden, n_classes, x, y_, activation,
+                start_lr, keep_prob=1, optimizer='gradientdescent',
+                learning_rate_decay=0.9, test_data=False, normalize_input='',
                 l2_regularization=0.):
     """Builds the computational graph without feeding any data in"""
 
@@ -110,12 +109,15 @@ def build_graph(n_features, n_hidden, n_classes, x, y_, activation, start_lr,
 
 
     # Calculate decay_rate.
-    global_step = tf.Variable(0, trainable=False)
-    learning_rate = tf.train.exponential_decay(start_lr,
-                                               global_step, decay_steps,
-                                               learning_rate_decay,
-                                               staircase=False)
-    tf.summary.scalar("learning_rate", learning_rate)
+    with tf.name_scope('learning_rate'):
+        global_step = tf.Variable(0, trainable=False)
+        decay_steps = tf.floor(tf.cast(n_samples / shape[0], tf.float32))
+        tf.summary.scalar('decay_steps', decay_steps)
+        learning_rate = tf.train.exponential_decay(start_lr,
+                                                   global_step, decay_steps,
+                                                   learning_rate_decay,
+                                                   staircase=False)
+        tf.summary.scalar("learning_rate", learning_rate)
 
     optimizer = get_optimizer(optimizer, learning_rate)
     train_step = optimizer.minimize(loss, global_step=global_step)

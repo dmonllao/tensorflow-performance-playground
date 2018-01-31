@@ -14,31 +14,23 @@ def exp_multiplier(start, end, num_epochs):
 
 
 def log_multiplier(start, end, num_epochs):
+    # TODO WRONG CALC, FOR start == eq the multiplier should be 1.
     percent = float(end) / float(start)
     return np.power(num_epochs, 1 / percent)
 
 
-def calc_constant_learning_rate_decay(start_lr, end_lr, batch_size,
-                                      n_samples, num_epochs):
+def calc_constant_learning_rate_decay(start_lr, end_lr, num_epochs):
     """Calculate approximately the optimal learning rate decay values"""
 
     # No decay.
     if start_lr == end_lr:
-        return 1, batch_size
+        return 1
 
     # Set learning rate decay so that it is the end learning rate after num_epoch.
     learning_rate_decay = exp_multiplier(start_lr, end_lr, num_epochs)
 
-    # The learning rate should decay after each epoch, otherwise the samples at
-    # the end of the dataset have less weight.
-    if batch_size is None:
-        decay_steps = 1
-    else:
-        decay_steps = np.floor(n_samples / batch_size)
-
     print('Learning rate decay: ' + str(learning_rate_decay))
-    print('Decay steps: ' + str(decay_steps))
-    return learning_rate_decay, decay_steps
+    return learning_rate_decay
 
 
 def parse_tfrecord_example(serialized_example):
