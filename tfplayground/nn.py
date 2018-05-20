@@ -99,7 +99,7 @@ def build_graph(n_samples, n_features, n_hidden, n_classes, x, y_, activation,
 
         # Calculate the test dataset accuracy.
         if test_data is not False:
-            test_x = tf.convert_to_tensor(test_data[0])
+            test_x = tf.convert_to_tensor(test_data[0].values.tolist())
             test_y = tf.convert_to_tensor(test_data[1])
             _, _, test_probs, test_softmax = feed_forward(test_x, (W, b), activation_function)
 
