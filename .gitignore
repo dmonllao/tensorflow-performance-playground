@@ -3,3 +3,4 @@ summaries
 tfplayground.egg-info
 data/mnist/mnist_test.csv
 data/mnist/mnist_train.csv
+info
