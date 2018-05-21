@@ -15,7 +15,6 @@ import tfplayground.nn as nn
 n_threads = 1
 input_method = 'oldschool' # 'oldschool', 'dataset' or 'pipeline'.
 
-
 def batch_log_increase_sizes(min_batch_size, max_batch_size, num_epochs, n_samples):
     """"Logarithmic scale of batch sizes"""
 
@@ -136,11 +135,11 @@ tensor_logdir = os.path.join(file_path, 'summaries', dir_path, str(time.time()))
 if test_dataset:
     test_data = inputs.test_data(test_dataset, n_classes, args.label_first_column, args.skip_rows)
 
-x = tf.placeholder(tf.float32, [None, n_features])
-y_ = tf.placeholder(tf.float32, [None, n_classes])
+x = tf.placeholder(tf.float32, [None, n_features], name='input_x')
+y_ = tf.placeholder(tf.float32, [None, n_classes], name='input_y')
 
 # Build graph.
-train_step, global_step, test_accuracy, model_vars = nn.build_graph(
+train_step, global_step, model_vars, test_accuracy, f1 = nn.build_graph(
     args.n_samples, n_features, n_hidden, n_classes, x, y_, args.activation,
     args.start_lr, test_data=test_data, keep_prob=args.keep_prob,
     optimizer=args.optimizer, learning_rate_decay=lr_decay,

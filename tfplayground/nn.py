@@ -1,3 +1,4 @@
+from __future__ import division
 import tensorflow as tf
 
 def build_graph(n_samples, n_features, n_hidden, n_classes, x, y_, activation,
@@ -80,6 +81,10 @@ def build_graph(n_samples, n_features, n_hidden, n_classes, x, y_, activation,
         tf.summary.histogram('predicted_output', predicted_output)
         tf.summary.histogram('activation_output', y)
 
+    # Predicted values.
+    with tf.name_scope('predicted'):
+        predicted_label = tf.argmax(y, 1, name='label')
+
     # Cost function.
     with tf.name_scope('loss'):
         loss = tf.nn.softmax_cross_entropy_with_logits(logits=predicted_output, labels=y_)
@@ -93,7 +98,9 @@ def build_graph(n_samples, n_features, n_hidden, n_classes, x, y_, activation,
 
     # Training and test accuracy.
     with tf.name_scope('accuracy'):
-        correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
+
+        real_label = tf.argmax(y_, 1)
+        correct_prediction = tf.equal(predicted_label, real_label)
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         tf.summary.scalar('training_accuracy', accuracy)
 
@@ -103,10 +110,30 @@ def build_graph(n_samples, n_features, n_hidden, n_classes, x, y_, activation,
             test_y = tf.convert_to_tensor(test_data[1])
             _, _, test_probs, test_softmax = feed_forward(test_x, (W, b), activation_function)
 
-            correct_prediction = tf.equal(tf.argmax(test_softmax, 1), tf.argmax(test_y, 1))
+            predictions = tf.argmax(test_softmax, 1)
+            labels = tf.argmax(test_y, 1)
+            correct_prediction = tf.equal(predictions, labels)
             test_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             tf.summary.scalar('test_accuracy', test_accuracy)
 
+            if n_classes == 2:
+                TP = tf.count_nonzero(predictions * labels)
+                TN = tf.count_nonzero((predictions - 1) * (labels - 1))
+                FP = tf.count_nonzero(predictions * (labels - 1))
+                FN = tf.count_nonzero((predictions - 1) * labels)
+                precision = TP / (TP + FP)
+                recall = TP / (TP + FN)
+                if precision + recall != 0:
+                    f1 = 2 * precision * recall / (precision + recall)
+                else:
+                    f1 = tf.Constant(0., dtype=tf.float32)
+
+                tf.summary.scalar('test_precision', precision)
+                tf.summary.scalar('test_recall', recall)
+                tf.summary.scalar('test_f1', f1)
+                fi = None
+            else:
+                f1 = None
 
     # Calculate decay_rate.
     with tf.name_scope('learning_rate'):
@@ -122,7 +149,7 @@ def build_graph(n_samples, n_features, n_hidden, n_classes, x, y_, activation,
     optimizer = get_optimizer(optimizer, learning_rate)
     train_step = optimizer.minimize(loss, global_step=global_step)
 
-    return train_step, global_step, test_accuracy, (W, b)
+    return train_step, global_step, (W, b), test_accuracy, f1
 
 
 def feed_forward(x, model_vars, activation_function):

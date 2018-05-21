@@ -90,7 +90,7 @@ def get_tfrecord_dataset(training_datasets, batch_size, num_epochs, skip_rows,
     return dataset
 
 
-def get_n_neurons(n_features, n_classes, n_hidden, training_datasets):
+def get_n_neurons(n_features, n_classes, n_hidden, training_datasets=False):
 
     if n_features == None or n_classes == None:
         info = inputs.dataset_info(training_datasets)

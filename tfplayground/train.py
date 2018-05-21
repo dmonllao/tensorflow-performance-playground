@@ -69,8 +69,8 @@ if input_method == 'pipeline':
     y_ = tf.one_hot(batches[1], n_classes)
 
 elif input_method == 'oldschool':
-    x = tf.placeholder(tf.float32, [None, n_features])
-    y_ = tf.placeholder(tf.float32, [None, n_classes])
+    x = tf.placeholder(tf.float32, [None, n_features], name='input_x')
+    y_ = tf.placeholder(tf.float32, [None, n_classes], name='input_y')
 
 elif input_method == 'dataset':
     dataset = inputs.get_tfrecord_dataset(training_datasets, args.batch_size, args.num_epochs,
@@ -81,7 +81,7 @@ elif input_method == 'dataset':
     y_ = tf.one_hot(next_element[1], n_classes)
 
 # Build graph.
-train_step, global_step, test_accuracy, model_vars = nn.build_graph(
+train_step, global_step, model_vars, test_accuracy, f1 = nn.build_graph(
     args.n_samples, n_features, n_hidden, n_classes, x, y_, args.activation,
     args.start_lr, test_data=test_data, keep_prob=args.keep_prob,
     optimizer=args.optimizer, learning_rate_decay=lr_decay,
