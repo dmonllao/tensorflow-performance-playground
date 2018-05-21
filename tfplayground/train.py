@@ -49,12 +49,15 @@ lr_decay = inputs.calc_constant_learning_rate_decay(args.start_lr,
 
 # Results logging.
 file_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-dir_path = (
-    'batchsize_' + str(args.batch_size) + '-epoch_' + str(args.num_epochs) +
-    '-learningrate_' + str(args.start_lr) +
-    '-decay_' + str(lr_decay) + '-activation_' + args.activation +
-    '-keepprob_' + str(args.keep_prob)
-)
+if args.name:
+    dir_path = args.name
+else:
+    dir_path = (
+        'batchsize_' + str(args.batch_size) + '-epoch_' + str(args.num_epochs) +
+        '-learningrate_' + str(args.start_lr) +
+        '-decay_' + str(lr_decay) + '-activation_' + args.activation +
+        '-keepprob_' + str(args.keep_prob)
+    )
 tensor_logdir = os.path.join(file_path, 'summaries', dir_path, str(time.time()))
 
 # Load test data.

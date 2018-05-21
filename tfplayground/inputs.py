@@ -224,6 +224,8 @@ def args_parser(description):
     parser.add_argument('--end_learning_rate', '-elr', dest='end_lr', type=float, default=0.005,
                         help='The learning rate after num_epoch. It will gradually ' +
                              'decrease from start_learning_rate')
+    parser.add_argument('--name', '-na', dest='name', type=str, default='',
+                        help='The run directory name')
 
     return parser
 
