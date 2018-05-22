@@ -128,9 +128,11 @@ def build_graph(n_samples, n_features, n_hidden, n_classes, x, y_, activation,
                 else:
                     f1 = tf.Constant(0., dtype=tf.float32)
 
+                _, auc = tf.metrics.auc(labels, predictions)
                 tf.summary.scalar('test_precision', precision)
                 tf.summary.scalar('test_recall', recall)
                 tf.summary.scalar('test_f1', f1)
+                tf.summary.scalar('test_auc', auc)
                 fi = None
             else:
                 f1 = None
