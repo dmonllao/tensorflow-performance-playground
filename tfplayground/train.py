@@ -154,7 +154,8 @@ with tf.Session() as sess:
                     file_writer.add_summary(summary, global_step_value)
 
     print('Test accuracy: ' + str(sess.run(test_accuracy)))
-    print('F1 score: ' + str(sess.run(f1)))
+    if f1 != None:
+        print('F1 score: ' + str(sess.run(f1)))
 
 end_time = time.clock()
 
